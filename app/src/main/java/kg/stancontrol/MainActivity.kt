@@ -74,6 +74,20 @@ class MainActivity : ComponentActivity() {
         var archiveDateFilter by remember { mutableStateOf("") }
         var showPreviousYears by remember { mutableStateOf(false) }
         var archiveYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
+        var historicalDate by remember { mutableStateOf(today()) }
+        var historicalProfile by remember { mutableStateOf("Уголок 50") }
+        var historicalMode by remember { mutableStateOf("Пачка") }
+        var historicalWidth by remember { mutableStateOf("5") }
+        var historicalRows by remember { mutableStateOf("15") }
+        var historicalLength by remember { mutableStateOf("6") }
+        var historicalWeight by remember { mutableStateOf("") }
+        var historicalDefectType by remember { mutableStateOf("Резка") }
+        var historicalPalletType by remember { mutableStateOf("Прокат") }
+        var historicalGross by remember { mutableStateOf("") }
+        var historicalTare by remember { mutableStateOf("") }
+        val historicalPacks = remember { mutableStateListOf<Pack>() }
+        val historicalDefects = remember { mutableStateListOf<Defect>() }
+        val historicalPallets = remember { mutableStateListOf<Pallet>() }
 
         val packs = remember { mutableStateListOf<Pack>().apply { addAll(readPacks()) } }
         val defects = remember { mutableStateListOf<Defect>().apply { addAll(readDefects()) } }
@@ -261,6 +275,14 @@ class MainActivity : ComponentActivity() {
                 }
                 "archive" -> {
                     Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Button(onClick = {
+                        historicalDate = today()
+                        historicalProfile = "Уголок 50"
+                        historicalWidth = "5"; historicalRows = "15"; historicalLength = "6"
+                        historicalPacks.clear(); historicalDefects.clear(); historicalPallets.clear()
+                        screen = "archive_new"
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Добавить прошлый день") }
+                    Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
                     val allShifts = (0 until savedShifts.length()).map { savedShifts.getJSONObject(it) }
                     val years = allShifts.mapNotNull { it.optString("date").takeLast(4).toIntOrNull() }.distinct().sortedDescending()
@@ -313,6 +335,100 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("Назад") }
+                }
+                "archive_new" -> {
+                    Text("Новый бланк за прошлую дату", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    OutlinedButton(onClick = {
+                        val cal = Calendar.getInstance()
+                        try { cal.time = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).parse(historicalDate) ?: Date() } catch (_: Exception) {}
+                        DatePickerDialog(this@MainActivity, { _, y, m, d ->
+                            historicalDate = String.format(Locale.getDefault(), "%02d.%02d.%04d", d, m + 1, y)
+                        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Дата: $historicalDate · выбрать") }
+                    Text("Профиль")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { p ->
+                            FilterChip(selected = historicalProfile == p, onClick = {
+                                historicalProfile = p
+                                historicalWidth = when (p) { "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
+                                historicalRows = if (p == "Уголок 40") "20" else "15"
+                            }, label = { Text(p) })
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        listOf("Пачка", "Брак", "Поддоны").forEach { m ->
+                            FilterChip(selected = historicalMode == m, onClick = { historicalMode = m }, label = { Text(m) })
+                        }
+                    }
+                    when (historicalMode) {
+                        "Пачка" -> {
+                            OutlinedTextField(historicalWeight, { historicalWeight = it }, label = { Text("Вес пачки, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(historicalRows, { historicalRows = it }, label = { Text("Количество рядов") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Text("Ширина: $historicalWidth · длина: $historicalLength м")
+                            Button(onClick = {
+                                val w = historicalWeight.replace(',', '.').toDoubleOrNull()
+                                val r = historicalRows.toIntOrNull()
+                                val wi = historicalWidth.toIntOrNull()
+                                val le = historicalLength.replace(',', '.').toDoubleOrNull()
+                                if (w != null && r != null && wi != null && le != null && w > 0 && r > 0 && wi > 0 && le > 0) {
+                                    val n = (wi * 2 - 1) * r - (wi - 1)
+                                    historicalPacks.add(Pack(w, r, n, round(w / (n * le) * 10.0) / 10.0, wi, le))
+                                    historicalWeight = ""
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Добавить пачку") }
+                        }
+                        "Брак" -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("Резка", "Металлолом").forEach { t -> FilterChip(historicalDefectType == t, { historicalDefectType = t }, label = { Text(t) }) }
+                            }
+                            OutlinedTextField(historicalWeight, { historicalWeight = it }, label = { Text("Вес брака, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Button(onClick = {
+                                val w = historicalWeight.replace(',', '.').toDoubleOrNull()
+                                if (w != null && w > 0) { historicalDefects.add(Defect(historicalDefectType, w)); historicalWeight = "" }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Добавить брак") }
+                        }
+                        else -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("Прокат", "Резка").forEach { t -> FilterChip(historicalPalletType == t, { historicalPalletType = t }, label = { Text(t) }) }
+                            }
+                            OutlinedTextField(historicalGross, { historicalGross = it }, label = { Text("Брутто, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(historicalTare, { historicalTare = it }, label = { Text("Тара, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Button(onClick = {
+                                val g = historicalGross.replace(',', '.').toDoubleOrNull()
+                                val t = historicalTare.replace(',', '.').toDoubleOrNull()
+                                if (g != null && t != null && g > t && t >= 0) {
+                                    historicalPallets.add(Pallet(historicalPalletType, g, t)); historicalGross = ""; historicalTare = ""
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
+                        }
+                    }
+                    Text("Добавлено: пачек ${historicalPacks.size} · ${fmt(historicalPacks.sumOf { it.weight })} кг | брак ${fmt(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmt(p.weight)} кг · К ${fmt(p.coefficient)} · ${p.pieces} шт") }
+                        itemsIndexed(historicalDefects) { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmt(d.weight)} кг") }
+                        itemsIndexed(historicalPallets) { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmt(p.net)} кг") }
+                    }
+                    Button(onClick = {
+                        val saved = JSONArray(prefs.getString("shifts_archive", "[]"))
+                        val exists = (0 until saved.length()).any { saved.getJSONObject(it).optString("date") == historicalDate }
+                        if (!exists) {
+                            val entry = JSONObject()
+                                .put("date", historicalDate).put("profile", historicalProfile)
+                                .put("packTotal", historicalPacks.sumOf { it.weight })
+                                .put("defectTotal", historicalDefects.sumOf { it.weight })
+                                .put("packs", JSONArray().also { a -> historicalPacks.forEach { p -> a.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
+                                .put("defects", JSONArray().also { a -> historicalDefects.forEach { d -> a.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
+                                .put("pallets", JSONArray().also { a -> historicalPallets.forEach { p -> a.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
+                            saved.put(entry)
+                            prefs.edit().putString("shifts_archive", saved.toString()).apply()
+                            archiveYear = historicalDate.takeLast(4)
+                            archiveDateFilter = historicalDate
+                            screen = "archive"
+                        } else {
+                            android.widget.Toast.makeText(this@MainActivity, "За эту дату бланк уже есть. Выберите другую дату.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("СОХРАНИТЬ В АРХИВ") }
+                    OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
                 }
                 "archive_detail" -> {
                     val shift = JSONObject(archiveShiftJson ?: "{}")
