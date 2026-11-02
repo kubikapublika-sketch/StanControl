@@ -153,55 +153,61 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 "work" -> {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Рабочий бланк", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Пачка", "Брак", "Поддоны").forEach { item ->
                             FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) })
                         }
                     }
                     when (mode) {
                         "Пачка" -> {
+                            Text("Пачка проката", fontWeight = FontWeight.SemiBold)
+                            OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес пачки, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Количество рядов")
-                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    OutlinedButton(onClick = { rows = ((rows.toIntOrNull() ?: 1) - 1).coerceAtLeast(1).toString() }) { Text("-") }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = { rows = ((rows.toIntOrNull() ?: 1) - 1).coerceAtLeast(1).toString() }) { Text("−") }
                                     Text(rows, modifier = Modifier.padding(top = 12.dp), fontWeight = FontWeight.Bold)
                                     OutlinedButton(onClick = { rows = ((rows.toIntOrNull() ?: 1) + 1).toString() }) { Text("+") }
                                 }
                             }
-                            OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес пачки, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
-                            Button(onClick = { addPack() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить пачку") }
+                            Text("Ширина: $width шт. | Длина: $length м", style = MaterialTheme.typography.bodySmall)
+                            Button(onClick = { addPack() }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ДОБАВИТЬ ПАЧКУ") }
                         }
                         "Брак" -> {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Регистрация брака", fontWeight = FontWeight.SemiBold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf("Резка", "Металлолом").forEach { item -> FilterChip(defectType == item, { defectType = item }, label = { Text(item) }) }
                             }
                             OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес брака, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
-                            Button(onClick = { addDefect() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить брак") }
+                            Button(onClick = { addDefect() }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ДОБАВИТЬ БРАК") }
                         }
                         else -> {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Регистрация поддона", fontWeight = FontWeight.SemiBold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf("Прокат", "Резка").forEach { item -> FilterChip(palletType == item, { palletType = item }, label = { Text(item) }) }
                             }
-                            OutlinedTextField(gross, { gross = it }, label = { Text("Общий вес с грузом, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
-                            OutlinedTextField(tare, { tare = it }, label = { Text("Вес тары, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
-                            Text("Чистый вес: " + fmt(((gross.replace(',', '.').toDoubleOrNull() ?: 0.0) - (tare.replace(',', '.').toDoubleOrNull() ?: 0.0)).coerceAtLeast(0.0)) + " кг")
-                            Button(onClick = { addPallet() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
+                            OutlinedTextField(gross, { gross = it }, label = { Text("Брутто, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(tare, { tare = it }, label = { Text("Тара, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Text("Нетто: " + fmt(((gross.replace(',', '.').toDoubleOrNull() ?: 0.0) - (tare.replace(',', '.').toDoubleOrNull() ?: 0.0)).coerceAtLeast(0.0)) + " кг", fontWeight = FontWeight.SemiBold)
+                            Button(onClick = { addPallet() }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ДОБАВИТЬ ПОДДОН") }
                         }
                     }
-                    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Текущие показатели", fontWeight = FontWeight.Bold)
-                        Text("Общий вес чистых пачек: " + fmt(packTotal) + " кг")
-                        Text("Общий вес брака: " + fmt(defectTotal) + " кг")
-                        Text("Количество чистых пачек: " + packs.size)
-                        Text("Количество пачек брака: " + defects.size)
-                        Text("Брак от общего веса: " + fmt(rejectPercent) + " %")
-                    } }
-                    if (lastPack != null) Text("Последняя пачка: " + fmt(lastPack.weight) + " кг | коэффициент " + fmt(lastPack.coefficient), fontWeight = FontWeight.SemiBold)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Пачки: " + fmt(packTotal) + " кг", fontWeight = FontWeight.Bold)
-                        Text("Брак: " + fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold)
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text("ИТОГИ СМЕНЫ", fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column { Text("Чистые пачки", style = MaterialTheme.typography.bodySmall); Text(fmt(packTotal) + " кг", fontWeight = FontWeight.Bold) }
+                                Column { Text("Брак", style = MaterialTheme.typography.bodySmall); Text(fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold) }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Пачек: ${packs.size} | Записей брака: ${defects.size}")
+                                Text("Брак: ${fmt(rejectPercent)} %", fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
-                    OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
+                    if (mode == "Пачка" && lastPack != null) Text("Последняя пачка: " + fmt(lastPack.weight) + " кг | коэффициент " + fmt(lastPack.coefficient))
+                    OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("ОБЩИЙ БЛАНК / ТАБЛИЦА") }
                     OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("На главную") }
                 }
                 "table" -> {
