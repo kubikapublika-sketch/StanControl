@@ -153,11 +153,32 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 "work" -> {
-                    Text("Рабочий бланк", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Пачка", "Брак", "Поддоны").forEach { item ->
                             FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) })
                         }
+                    }
+                    Card(Modifier.fillMaxWidth()) {
+                        Text(
+                            "Пачки ${packs.size} · ${fmt(packTotal)} кг   |   Брак ${defects.size} · ${fmt(defectTotal)} кг   |   ${fmt(rejectPercent)}%",
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                    Card(Modifier.fillMaxWidth()) {
+                        val lp = lastPack
+                        Text(
+                            if (lp == null) "Последняя пачка: пока нет записей"
+                            else "Последняя: ${fmt(lp.weight)} кг  ·  К ${fmt(lp.coefficient)}  ·  Р ${lp.rows}",
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                     when (mode) {
                         "Пачка" -> {
@@ -193,20 +214,6 @@ class MainActivity : ComponentActivity() {
                             Button(onClick = { addPallet() }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ДОБАВИТЬ ПОДДОН") }
                         }
                     }
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text("ИТОГИ СМЕНЫ", fontWeight = FontWeight.Bold)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Column { Text("Чистые пачки", style = MaterialTheme.typography.bodySmall); Text(fmt(packTotal) + " кг", fontWeight = FontWeight.Bold) }
-                                Column { Text("Брак", style = MaterialTheme.typography.bodySmall); Text(fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold) }
-                            }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Пачек: ${packs.size} | Записей брака: ${defects.size}")
-                                Text("Брак: ${fmt(rejectPercent)} %", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                    if (mode == "Пачка" && lastPack != null) Text("Последняя пачка: " + fmt(lastPack.weight) + " кг | коэффициент " + fmt(lastPack.coefficient))
                     OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("ОБЩИЙ БЛАНК / ТАБЛИЦА") }
                     OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("На главную") }
                 }
