@@ -12,6 +12,7 @@
 @media(max-width:520px){.grid{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.top{align-items:flex-start}.brand{font-size:19px}}
 @media print{body{background:#fff;color:#111;font-size:11px}.wrap{max-width:none;padding:0}.no-print,.tabs,.footer{display:none!important}.card{background:#fff;border:0;padding:0;margin:0 0 12px}.item{background:#fff;border:1px solid #bbb;color:#111;break-inside:avoid}.meta,.muted,.sub,.field label{color:#444}.stat{background:#fff;border:1px solid #bbb}.stat span{color:#444}.stat b{color:#111}.printhead{display:block!important}button{display:none}input,select{border:0;background:#fff;color:#111;padding:0}.pill{border:1px solid #999;background:#fff;color:#111}.result{background:#fff;border:1px solid #999;color:#111}.result b{color:#111}}
 .printhead{display:none}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.keypad button{min-height:64px;font-size:25px;border-radius:13px;background:#22344d;color:#fff;border:1px solid #38506e}.keypad button.ok{background:#58a6ff;color:#071426;font-size:19px}.keypad button.erase{background:#49252e;color:#ffdce0;font-size:18px}.weight-display{font-size:36px!important;font-weight:800;text-align:center;letter-spacing:1px;padding:18px!important;min-height:78px}.weight-label{text-align:center;color:var(--muted);font-size:13px;margin-bottom:7px}
 </style>
 </head>
 <body>
@@ -32,7 +33,7 @@
 <div class="twocol">
  <section class="card">
   <h2>Добавить пачку</h2>
-  <div class="field"><label for="packWeight">Вес пачки, кг</label><input id="packWeight" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Например, 2000"></div>
+  <div class="field"><label class="weight-label" for="packWeight">ВЕС ПАЧКИ, КГ</label><input id="packWeight" class="weight-display" type="text" inputmode="none" readonly placeholder="0"></div><div class="keypad no-print" id="weightKeypad"><button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" class="erase" data-key="clear">Сброс</button><button type="button" data-key="0">0</button><button type="button" class="erase" data-key="back">⌫</button></div>
   <div class="field" style="margin-top:10px"><label for="packStatus">Куда направить пачку</label><select id="packStatus"><option value="good">Годная продукция</option><option value="rework">На переборку / ОТК</option><option value="cutting">В резку</option></select></div>
   <div class="result"><div class="muted">Предварительный расчёт</div><div id="previewText">Укажи вес пачки</div></div>
   <button id="addPack" style="width:100%;margin-top:12px">Добавить пачку</button>
@@ -130,7 +131,7 @@ document.getElementById('workDate').value=new Date().toISOString().slice(0,10);
 document.getElementById('workDate').addEventListener('change',()=>{render();updateFormula()});
 document.getElementById('angleType').addEventListener('change',updateFormula);
 document.getElementById('dailyRows').addEventListener('change',e=>{const v=Number(e.target.value);if(!Number.isInteger(v)||v<1){alert('Количество рядов должно быть целым числом больше нуля');e.target.value=day().rows;return}day().rows=v;render()});
-document.getElementById('packWeight').addEventListener('input',updatePreview);
+document.getElementById('weightKeypad').addEventListener('click',e=>{const b=e.target.closest('button[data-key]');if(!b)return;const input=document.getElementById('packWeight'),k=b.dataset.key;if(k==='clear')input.value='';else if(k==='back')input.value=input.value.slice(0,-1);else if(k==='.') {if(!input.value.includes('.'))input.value+=(input.value?'':'0')+'.'} else input.value+=k;updatePreview()});
 document.getElementById('addPack').addEventListener('click',addPack);
 document.getElementById('addDefect').addEventListener('click',addDefect);
 document.getElementById('newTemplate').addEventListener('click',resetTemplateForm);
