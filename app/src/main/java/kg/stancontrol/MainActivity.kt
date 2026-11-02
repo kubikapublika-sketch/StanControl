@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
 
         fun saveAll() {
             val p = JSONArray()
-            packs.forEach { p.put(JSONObject().put("w", it.weight).put("r", it.rows).put("n", it.pieces).put("k", it.coefficient)) }
+            packs.forEach { p.put(JSONObject().put("w", it.weight).put("r", it.rows).put("n", it.pieces).put("k", it.coefficient).put("width", it.width).put("length", it.length)) }
             val d = JSONArray()
             defects.forEach { d.put(JSONObject().put("t", it.type).put("w", it.weight)) }
             val a = JSONArray()
@@ -359,7 +359,7 @@ class MainActivity : ComponentActivity() {
     private fun fmt(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
     private fun readPacks(): List<Pack> {
         val a = JSONArray(prefs.getString("packs", "[]"))
-        return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), o.getDouble("k")) }
+        return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), o.getDouble("k"), o.optInt("width", 5), o.optDouble("length", 6.0)) }
     }
     private fun readDefects(): List<Defect> {
         val a = JSONArray(prefs.getString("defects", "[]"))
