@@ -656,7 +656,7 @@ class MainActivity : ComponentActivity() {
 
     private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
         val pdf = PdfDocument()
-        val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
+        val page = pdf.startPage(PdfDocument.PageInfo.Builder(842, 595, 1).create())
         val canvas = page.canvas
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val left = 30f
@@ -701,16 +701,37 @@ class MainActivity : ComponentActivity() {
             y += 24f
         }
 
-        text("StanControl", left, y + 16f, 17f, true)
-        text("ОТЧЁТ ПРОИЗВОДСТВЕННОЙ СМЕНЫ", left + 112f, y + 15f, 11f, true)
-        y += 26f
-        text("Дата: $date", left, y + 11f, 9.5f, true)
-        text("Профиль: $profile", left + 180f, y + 11f, 9.5f, true)
-        y += 18f
-        line(y, 0xFF777777.toInt(), 1f)
-        y += 9f
+        val goodWeight = packs.sumOf { it.weight }
+        val defectWeight = defects.sumOf { it.weight }
+        val percent = if (goodWeight + defectWeight > 0) defectWeight * 100.0 / (goodWeight + defectWeight) else 0.0
+
+        // Шапка производственного бланка на всю ширину альбомного листа.
+        paint.color = 0xFF26364A.toInt()
+        canvas.drawRoundRect(left, y, right, y + 112f, 9f, 9f, paint)
+        text("STANCONTROL", left + 14f, y + 20f, 9f, true, 0xFFBFD2E5.toInt())
+        text("ОТЧЁТ ПРОИЗВОДСТВЕННОЙ СМЕНЫ", left + 14f, y + 42f, 16f, true, android.graphics.Color.WHITE)
+        text("ДАТА: $date", left + 14f, y + 63f, 11f, true, android.graphics.Color.WHITE)
+        text("ВИД УГОЛКА: $profile", left + 230f, y + 63f, 11f, true, android.graphics.Color.WHITE)
+        val metricTop = y + 73f
+        val metricBottom = y + 104f
+        val metricGap = 8f
+        val metricWidth = (width - metricGap * 2f) / 3f
+        val metrics = listOf(
+            "ЧИСТЫЙ ВЕС" to "${fmt(goodWeight)} кг",
+            "ОБЩИЙ ВЕС БРАКА" to "${fmt(defectWeight)} кг",
+            "БРАК ОТ ОБЩЕГО ВЕСА" to "${fmt(percent)} %"
+        )
+        metrics.forEachIndexed { index, metric ->
+            val x = left + index * (metricWidth + metricGap)
+            paint.color = 0xFF40536B.toInt()
+            canvas.drawRoundRect(x, metricTop, x + metricWidth, metricBottom, 4f, 4f, paint)
+            text(metric.first, x + 8f, metricTop + 11f, 8f, true, 0xFFD5E1ED.toInt())
+            text(metric.second, x + 8f, metricTop + 25f, 11f, true, android.graphics.Color.WHITE)
+        }
+        y += 122f
 
         section("1. ГОТОВАЯ ПРОДУКЦИЯ · ПАЧКИ")
+
         val packXs = listOf(left + 10f, left + 95f, left + 220f, left + 365f)
         tableHeader(listOf("№", "КОЭФФИЦИЕНТ", "ВЕС, КГ", "КОЛ-ВО, ШТ"), packXs)
         if (packs.isEmpty()) {
@@ -722,9 +743,6 @@ class MainActivity : ComponentActivity() {
         }
         total("ИТОГО ГОТОВАЯ ПРОДУКЦИЯ", "${fmt(packs.sumOf { it.weight })} кг     ${packs.sumOf { it.pieces }} шт")
 
-        val goodWeight = packs.sumOf { it.weight }
-        val defectWeight = defects.sumOf { it.weight }
-        val percent = if (goodWeight + defectWeight > 0) defectWeight * 100.0 / (goodWeight + defectWeight) else 0.0
         section("2. БРАК")
         val cutting = defects.filter { it.type == "Резка" }.sumOf { it.weight }
         val scrap = defects.filter { it.type == "Металлолом" }.sumOf { it.weight }
