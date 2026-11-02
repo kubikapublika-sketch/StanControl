@@ -307,30 +307,51 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+        val lines = mutableListOf<String>()
+        lines += "StanControl | ОТЧЁТ СМЕНЫ"
+        lines += "Дата: $date     Профиль: $profile"
+        lines += "ПАЧКИ: № | коэффициент | вес, кг | штук"
+        packs.forEachIndexed { i, p -> lines += "${i + 1} | ${fmt(p.coefficient)} | ${fmt(p.weight)} | ${p.pieces}" }
+        lines += "ИТОГО ПАЧКИ: ${fmt(packs.sumOf { it.weight })} кг | ${packs.sumOf { it.pieces }} шт"
+        lines += "БРАК"
+        lines += "Резка: ${fmt(defects.filter { it.type == "Резка" }.sumOf { it.weight })} кг"
+        lines += "Металлолом: ${fmt(defects.filter { it.type == "Металлолом" }.sumOf { it.weight })} кг"
+        val goodWeight = packs.sumOf { it.weight }
+        val defectWeight = defects.sumOf { it.weight }
+        val percent = if (goodWeight + defectWeight > 0) defectWeight * 100.0 / (goodWeight + defectWeight) else 0.0
+        lines += "ВСЕГО БРАК: ${fmt(defectWeight)} кг | ПРОЦЕНТ БРАКА ОТ ПАЧЕК + БРАКА: ${fmt(percent)} %"
+        lines += "ПОДДОНЫ ПРОКАТ: № | брутто | тара | нетто, кг"
+        pallets.filter { it.type == "Прокат" }.forEachIndexed { i, p -> lines += "${i + 1} | ${fmt(p.gross)} | ${fmt(p.tare)} | ${fmt(p.net)}" }
+        lines += "ИТОГО ПОДДОНЫ ПРОКАТ: ${fmt(pallets.filter { it.type == "Прокат" }.sumOf { it.net })} кг"
+        lines += "ПОДДОНЫ РЕЗКА: № | брутто | тара | нетто, кг"
+        pallets.filter { it.type == "Резка" }.forEachIndexed { i, p -> lines += "${i + 1} | ${fmt(p.gross)} | ${fmt(p.tare)} | ${fmt(p.net)}" }
+        lines += "ИТОГО ПОДДОНЫ РЕЗКА: ${fmt(pallets.filter { it.type == "Резка" }.sumOf { it.net })} кг"
+        lines += "ВСЕГО ПОДДОНЫ НЕТТО: ${fmt(pallets.sumOf { it.net })} кг"
+
         val pdf = PdfDocument()
         val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
-        val paint = Paint().apply { textSize = 12f }
-        var y = 42f
-        fun line(s: String) { page.canvas.drawText(s, 36f, y, paint); y += 22f }
-        line("StanControl | $date | $profile")
-        line("ПАЧКИ: коэффициент | вес кг | штук")
-        packs.forEachIndexed { i, p -> line("${i + 1}. ${fmt(p.coefficient)} | ${fmt(p.weight)} | ${p.pieces}") }
-        line("Итого пачки: ${fmt(packs.sumOf { it.weight })} кг")
-        line("БРАК")
-        line("Резка: ${fmt(defects.filter { it.type == "Резка" }.sumOf { it.weight })} кг")
-        line("Металлолом: ${fmt(defects.filter { it.type == "Металлолом" }.sumOf { it.weight })} кг")
-        line("Всего брак: ${fmt(defects.sumOf { it.weight })} кг")
-        line("ПОДДОНЫ ПРОКАТ")
-        pallets.filter { it.type == "Прокат" }.forEachIndexed { i, p -> line("${i + 1}. ${fmt(p.gross)} / ${fmt(p.tare)} / ${fmt(p.net)}") }
-        line("ПОДДОНЫ РЕЗКА")
-        pallets.filter { it.type == "Резка" }.forEachIndexed { i, p -> line("${i + 1}. ${fmt(p.gross)} / ${fmt(p.tare)} / ${fmt(p.net)}") }
+        val canvas = page.canvas
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val availableHeight = 770f
+        val rowHeight = (availableHeight / lines.size).coerceAtMost(18f)
+        val fontSize = (rowHeight * 0.72f).coerceIn(5.5f, 13f)
+        paint.textSize = fontSize
+        var y = 36f
+        lines.forEachIndexed { index, line ->
+            paint.isFakeBoldText = index == 0 || line.startsWith("ПАЧКИ") || line.startsWith("ИТОГО") || line.startsWith("БРАК") || line.startsWith("ПОДДОНЫ") || line.startsWith("ВСЕГО")
+            canvas.drawText(line.take(110), 28f, y, paint)
+            y += rowHeight
+        }
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
         val file = File(dir, "StanControl-$date.pdf")
-        file.outputStream().use { pdf.writeTo(it) }; pdf.close()
+        file.outputStream().use { pdf.writeTo(it) }
+        pdf.close()
         val uri = FileProvider.getUriForFile(this, "kg.stancontrol.fileprovider", file)
         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }, "Поделиться PDF"))
     }
 
