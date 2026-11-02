@@ -356,97 +356,96 @@ class MainActivity : ComponentActivity() {
         val pdf = PdfDocument()
         val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
         val canvas = page.canvas
-        val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        val left = 34f
-        val right = 561f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val left = 30f
+        val right = 565f
         val width = right - left
+        var y = 30f
+
+        fun text(value: String, x: Float, baseline: Float, size: Float = 9f, bold: Boolean = false, color: Int = android.graphics.Color.BLACK) {
+            paint.color = color
+            paint.textSize = size
+            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            canvas.drawText(value, x, baseline, paint)
+        }
+        fun line(yLine: Float, color: Int = 0xFFB8B8B8.toInt(), stroke: Float = 0.7f) {
+            paint.color = color
+            paint.strokeWidth = stroke
+            canvas.drawLine(left, yLine, right, yLine, paint)
+        }
+        fun section(title: String) {
+            paint.color = 0xFFEAE6F2.toInt()
+            canvas.drawRect(left, y, right, y + 20f, paint)
+            text(title, left + 7f, y + 14f, 10f, true)
+            y += 20f
+        }
+        fun tableHeader(headers: List<String>, xs: List<Float>, rowH: Float = 19f) {
+            paint.color = 0xFFF4F4F4.toInt()
+            canvas.drawRect(left, y, right, y + rowH, paint)
+            headers.forEachIndexed { i, h -> text(h, xs[i], y + 13f, 8.5f, true) }
+            line(y + rowH, 0xFF777777.toInt(), 0.9f)
+            y += rowH
+        }
+        fun tableRow(values: List<String>, xs: List<Float>, rowH: Float = 18f, bold: Boolean = false) {
+            values.forEachIndexed { i, v -> text(v, xs[i], y + 12.5f, 9f, bold) }
+            line(y + rowH, 0xFFE0E0E0.toInt(), 0.5f)
+            y += rowH
+        }
+        fun total(label: String, value: String) {
+            paint.color = 0xFFF3F1F6.toInt()
+            canvas.drawRect(left, y, right, y + 20f, paint)
+            text(label, left + 7f, y + 14f, 9f, true)
+            text(value, right - paint.measureText(value) - 8f, y + 14f, 9f, true)
+            y += 24f
+        }
+
+        text("StanControl", left, y + 16f, 17f, true)
+        text("ОТЧЁТ ПРОИЗВОДСТВЕННОЙ СМЕНЫ", left + 112f, y + 15f, 11f, true)
+        y += 26f
+        text("Дата: $date", left, y + 11f, 9.5f, true)
+        text("Профиль: $profile", left + 180f, y + 11f, 9.5f, true)
+        y += 18f
+        line(y, 0xFF777777.toInt(), 1f)
+        y += 9f
+
+        section("1. ГОТОВАЯ ПРОДУКЦИЯ · ПАЧКИ")
+        val packXs = listOf(left + 10f, left + 95f, left + 220f, left + 365f)
+        tableHeader(listOf("№", "КОЭФФИЦИЕНТ", "ВЕС, КГ", "КОЛ-ВО, ШТ"), packXs)
+        packs.forEachIndexed { i, p ->
+            tableRow(listOf((i + 1).toString(), fmt(p.coefficient), fmt(p.weight), p.pieces.toString()), packXs)
+        }
+        total("ИТОГО ГОТОВАЯ ПРОДУКЦИЯ", "${fmt(packs.sumOf { it.weight })} кг     ${packs.sumOf { it.pieces }} шт")
+
         val goodWeight = packs.sumOf { it.weight }
         val defectWeight = defects.sumOf { it.weight }
-        val defectPercent = if (goodWeight + defectWeight > 0) defectWeight * 100.0 / (goodWeight + defectWeight) else 0.0
+        val percent = if (goodWeight + defectWeight > 0) defectWeight * 100.0 / (goodWeight + defectWeight) else 0.0
+        section("2. БРАК")
+        val cutting = defects.filter { it.type == "Резка" }.sumOf { it.weight }
+        val scrap = defects.filter { it.type == "Металлолом" }.sumOf { it.weight }
+        val defectXs = listOf(left + 10f, left + 220f)
+        tableHeader(listOf("КАТЕГОРИЯ", "ВЕС, КГ"), defectXs)
+        tableRow(listOf("Резка", fmt(cutting)), defectXs)
+        tableRow(listOf("Металлолом", fmt(scrap)), defectXs)
+        total("ВСЕГО БРАК · ${fmt(percent)} % ОТ ОБЩЕГО ВЕСА", "${fmt(defectWeight)} кг")
+
+        val palletXs = listOf(left + 10f, left + 125f, left + 260f, left + 395f)
         val rolling = pallets.filter { it.type == "Прокат" }
-        val cutting = pallets.filter { it.type == "Резка" }
-        val entryCount = packs.size + pallets.size + 10
-        val rowH = (690f / entryCount.coerceAtLeast(1)).coerceIn(12f, 18f)
-        val regular = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 10f; color = android.graphics.Color.BLACK }
-        val bold = Paint(regular).apply { typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD) }
-        val title = Paint(bold).apply { textSize = 17f }
-        val small = Paint(regular).apply { textSize = 9f }
-        val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.DKGRAY; strokeWidth = 0.8f }
-        val lightLine = Paint(line).apply { color = android.graphics.Color.LTGRAY; strokeWidth = 0.5f }
-        fun text(value: String, x: Float, y: Float, paint: Paint = regular) { canvas.drawText(value, x, y, paint) }
-        fun rule(y: Float, strong: Boolean = false) { canvas.drawLine(left, y, right, y, if (strong) line else lightLine) }
-        fun section(label: String, y: Float): Float {
-            canvas.drawRect(left, y - 13f, right, y + 5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEAE6F2.toInt() })
-            text(label, left + 7f, y, bold)
-            return y + 20f
-        }
-        fun tableHeader(y: Float, labels: List<Pair<String, Float>>): Float {
-            labels.forEach { (label, x) -> text(label, x, y, bold) }
-            rule(y + 4f, true)
-            return y + rowH
-        }
+        val cuttingPallets = pallets.filter { it.type == "Резка" }
+        section("3. ПОДДОНЫ ПРОКАТ")
+        tableHeader(listOf("№", "БРУТТО, КГ", "ТАРА, КГ", "НЕТТО, КГ"), palletXs)
+        rolling.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
+        total("ИТОГО ПОДДОНЫ ПРОКАТ", "${fmt(rolling.sumOf { it.net })} кг")
 
-        canvas.drawRect(left, 24f, right, 818f, line)
-        text("STANCONTROL", left + 14f, 49f, title)
-        text("ОТЧЁТ ПРОИЗВОДСТВЕННОЙ СМЕНЫ", left + 14f, 68f, bold)
-        text("Дата: $date", left + 14f, 88f)
-        text("Профиль: $profile", 285f, 88f)
-        rule(99f, true)
+        section("4. ПОДДОНЫ РЕЗКА")
+        tableHeader(listOf("№", "БРУТТО, КГ", "ТАРА, КГ", "НЕТТО, КГ"), palletXs)
+        cuttingPallets.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
+        total("ИТОГО ПОДДОНЫ РЕЗКА", "${fmt(cuttingPallets.sumOf { it.net })} кг")
+        total("ВСЕГО ПОДДОНЫ · НЕТТО", "${fmt(pallets.sumOf { it.net })} кг")
 
-        var y = 118f
-        y = section("1. ПАЧКИ ПРОКАТА", y)
-        y = tableHeader(y, listOf("№", left + 10f to left + 10f, "Коэфф.", 120f, "Вес, кг", 250f, "Количество, шт", 405f).chunked(2).map { it[0] as String to (it[1] as Float) })
-        packs.forEachIndexed { i, pack ->
-            text((i + 1).toString(), left + 12f, y)
-            text(fmt(pack.coefficient), 120f, y)
-            text(fmt(pack.weight), 250f, y)
-            text(pack.pieces.toString(), 405f, y)
-            rule(y + 4f)
-            y += rowH
-        }
-        text("ИТОГО ПАЧКИ", left + 10f, y + 1f, bold)
-        text(fmt(goodWeight) + " кг", 250f, y + 1f, bold)
-        text(packs.sumOf { it.pieces }.toString() + " шт", 405f, y + 1f, bold)
-        y += rowH + 7f
-
-        y = section("2. БРАК", y)
-        val cutDefect = defects.filter { it.type == "Резка" }.sumOf { it.weight }
-        val scrapDefect = defects.filter { it.type == "Металлолом" }.sumOf { it.weight }
-        text("Резка: " + fmt(cutDefect) + " кг", left + 10f, y)
-        text("Металлолом: " + fmt(scrapDefect) + " кг", 220f, y)
-        text("Всего: " + fmt(defectWeight) + " кг", 390f, y, bold)
-        y += rowH
-        text("Доля брака: " + fmt(defectPercent) + " % от общего веса пачек и брака", left + 10f, y, bold)
-        y += rowH + 7f
-
-        y = section("3. ПОДДОНЫ ПРОКАТ", y)
-        y = tableHeader(y, listOf("№" to (left + 10f), "Брутто, кг" to 150f, "Тара, кг" to 285f, "Нетто, кг" to 420f))
-        rolling.forEachIndexed { i, pallet ->
-            text((i + 1).toString(), left + 12f, y)
-            text(fmt(pallet.gross), 150f, y)
-            text(fmt(pallet.tare), 285f, y)
-            text(fmt(pallet.net), 420f, y)
-            rule(y + 4f)
-            y += rowH
-        }
-        text("Итого прокат: " + fmt(rolling.sumOf { it.net }) + " кг", left + 10f, y, bold)
-        y += rowH + 5f
-
-        y = section("4. ПОДДОНЫ РЕЗКА", y)
-        y = tableHeader(y, listOf("№" to (left + 10f), "Брутто, кг" to 150f, "Тара, кг" to 285f, "Нетто, кг" to 420f))
-        cutting.forEachIndexed { i, pallet ->
-            text((i + 1).toString(), left + 12f, y)
-            text(fmt(pallet.gross), 150f, y)
-            text(fmt(pallet.tare), 285f, y)
-            text(fmt(pallet.net), 420f, y)
-            rule(y + 4f)
-            y += rowH
-        }
-        text("Итого резка: " + fmt(cutting.sumOf { it.net }) + " кг", left + 10f, y, bold)
-        y += rowH + 7f
-        rule(y, true)
-        text("ОБЩИЙ ИТОГ ПОДДОНОВ: " + fmt(pallets.sumOf { it.net }) + " кг", left + 10f, y + 15f, bold)
-        text("Ответственный: __________________________", 330f, y + 15f, small)
+        // A compact footer and border make the page read as a finished form.
+        y += 3f
+        line(y, 0xFF777777.toInt(), 1f)
+        text("StanControl  ·  Сменный производственный отчёт", left, y + 13f, 7.5f, false, 0xFF666666.toInt())
 
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
