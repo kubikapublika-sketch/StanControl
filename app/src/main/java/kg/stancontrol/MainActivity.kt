@@ -76,6 +76,22 @@ class MainActivity : ComponentActivity() {
                                 Stat("Общий вес","%.1f кг".format(total))
                                 Stat("Брак","%.1f кг".format(defectTotal))
                             }
+                            val lastPack = packs.lastOrNull()
+                            Card(modifier=Modifier.fillMaxWidth(), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)) {
+                                Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                    Text("ПОСЛЕДНЯЯ ДОБАВЛЕННАЯ ПАЧКА", style=MaterialTheme.typography.labelMedium, fontWeight=FontWeight.Bold)
+                                    if (lastPack == null) {
+                                        Text("Пока пачек нет", style=MaterialTheme.typography.titleMedium)
+                                    } else {
+                                        Text("Пачка №${lastPack.number}", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween) {
+                                            Stat("Вес", "${"%.1f".format(lastPack.weight)} кг")
+                                            Stat("Коэффициент", lastPack.coefficient.toString())
+                                            Stat("Ряды", lastPack.rows.toString())
+                                        }
+                                    }
+                                }
+                            }
                             OutlinedTextField(rowsText,{rowsText=it},label={Text("Рядов для следующей пачки")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true,modifier=Modifier.fillMaxWidth())
                             OutlinedTextField(weightText,{weightText=it},label={Text("Вес пачки, кг")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),singleLine=true,modifier=Modifier.fillMaxWidth())
                             Button(onClick={
