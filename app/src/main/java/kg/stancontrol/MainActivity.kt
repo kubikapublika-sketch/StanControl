@@ -266,7 +266,7 @@ class MainActivity : ComponentActivity() {
                                 Card(Modifier.fillMaxWidth()) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                         Text(shift.optString("date") + " · " + shift.optString("profile"), fontWeight = FontWeight.Bold)
-                                        Text("Пачки: " + shift.optJSONArray("packs")?.length().orZero() + " · " + fmt(shift.optDouble("packTotal")) + " кг")
+                                        Text("Пачки: " + (shift.optJSONArray("packs")?.length() ?: 0) + " · " + fmt(shift.optDouble("packTotal")) + " кг")
                                         Text("Брак: " + fmt(shift.optDouble("defectTotal")) + " кг")
                                         Button(onClick = { archiveShiftJson = shift.toString(); screen = "archive_detail" }) {
                                             Text("Открыть смену")
