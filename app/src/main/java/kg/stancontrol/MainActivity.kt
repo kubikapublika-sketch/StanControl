@@ -18,118 +18,289 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.round
 
-data class Pack(val number: Int, val weight: Double, val rows: Int, val rods: Int, val coefficient: Double)
-data class Defect(val kind: String, val weight: Double)
+data class Pack(val weight: Double, val rows: Int, val pieces: Int, val coefficient: Double)
+data class Defect(val type: String, val weight: Double)
+data class Pallet(val type: String, val gross: Double, val tare: Double) { val net: Double get() = gross - tare }
 
 class MainActivity : ComponentActivity() {
+    private val prefs by lazy { getSharedPreferences("stancontrol", MODE_PRIVATE) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val prefs = getSharedPreferences("stancontrol", MODE_PRIVATE)
-        setContent {
-            MaterialTheme {
-                var active by remember { mutableStateOf(prefs.getBoolean("active", false)) }
-                var angle by remember { mutableStateOf(prefs.getString("angle", "50") ?: "50") }
-                var rowsText by remember { mutableStateOf(prefs.getString("rows", "15") ?: "15") }
-                var weightText by remember { mutableStateOf("") }
-                var defectText by remember { mutableStateOf("") }
-                var defectKind by remember { mutableStateOf("Металлолом") }
-                var showArchive by remember { mutableStateOf(false) }
-                val packs = remember { mutableStateListOf<Pack>().apply {
-                    val a = JSONArray(prefs.getString("packs", "[]"))
-                    for (i in 0 until a.length()) { val o=a.getJSONObject(i); add(Pack(o.getInt("number"),o.getDouble("weight"),o.getInt("rows"),o.getInt("rods"),o.getDouble("coefficient"))) }
-                } }
-                val defects = remember { mutableStateListOf<Defect>().apply {
-                    val a = JSONArray(prefs.getString("defects", "[]"))
-                    for (i in 0 until a.length()) { val o=a.getJSONObject(i); add(Defect(o.getString("kind"),o.getDouble("weight"))) }
-                } }
-                fun save() {
-                    val pa=JSONArray(); packs.forEach { pa.put(JSONObject().put("number",it.number).put("weight",it.weight).put("rows",it.rows).put("rods",it.rods).put("coefficient",it.coefficient)) }
-                    val da=JSONArray(); defects.forEach { da.put(JSONObject().put("kind",it.kind).put("weight",it.weight)) }
-                    prefs.edit().putString("packs",pa.toString()).putString("defects",da.toString()).putString("angle",angle).putString("rows",rowsText).putBoolean("active",active).apply()
-                }
-                val total = packs.sumOf { it.weight }
-                val defectTotal = defects.sumOf { it.weight }
-                Surface(Modifier.fillMaxSize(), color=MaterialTheme.colorScheme.background) {
-                    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween) {
-                            Text("StanControl", style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold)
-                            TextButton(onClick={showArchive=!showArchive}) { Text(if(showArchive) "Назад" else "Архив") }
+        setContent { MaterialTheme { MainScreen() } }
+    }
+
+    @Composable
+    private fun MainScreen() {
+        var active by remember { mutableStateOf(prefs.getBoolean("active", false)) }
+        var screen by remember { mutableStateOf("home") }
+        var mode by remember { mutableStateOf("Пачка") }
+        var profile by remember { mutableStateOf(prefs.getString("profile", "Уголок 50") ?: "Уголок 50") }
+        var width by remember { mutableStateOf(prefs.getInt("width", 5).toString()) }
+        var length by remember { mutableStateOf(prefs.getString("length", "6") ?: "6") }
+        var rows by remember { mutableStateOf(prefs.getInt("rows", 15).toString()) }
+        var date by remember { mutableStateOf(prefs.getString("date", today()) ?: today()) }
+        var inputWeight by remember { mutableStateOf("") }
+        var gross by remember { mutableStateOf("") }
+        var tare by remember { mutableStateOf("") }
+        var defectType by remember { mutableStateOf("Резка") }
+        var palletType by remember { mutableStateOf("Прокат") }
+        var showSettings by remember { mutableStateOf(false) }
+        var showPacks by remember { mutableStateOf(true) }
+        var showDefects by remember { mutableStateOf(false) }
+        var showPallets by remember { mutableStateOf(false) }
+        var editPack by remember { mutableStateOf(-1) }
+        var editDefect by remember { mutableStateOf(-1) }
+        var editPallet by remember { mutableStateOf(-1) }
+        var editWeight by remember { mutableStateOf("") }
+        var editRows by remember { mutableStateOf("") }
+        var editGross by remember { mutableStateOf("") }
+        var editTare by remember { mutableStateOf("") }
+        var editType by remember { mutableStateOf("") }
+        var confirmFinish by remember { mutableStateOf(false) }
+
+        val packs = remember { mutableStateListOf<Pack>().apply { addAll(readPacks()) } }
+        val defects = remember { mutableStateListOf<Defect>().apply { addAll(readDefects()) } }
+        val pallets = remember { mutableStateListOf<Pallet>().apply { addAll(readPallets()) } }
+        val packTotal = packs.sumOf { it.weight }
+        val defectTotal = defects.sumOf { it.weight }
+        val lastPack = packs.lastOrNull()
+
+        fun saveAll() {
+            val p = JSONArray()
+            packs.forEach { p.put(JSONObject().put("w", it.weight).put("r", it.rows).put("n", it.pieces).put("k", it.coefficient)) }
+            val d = JSONArray()
+            defects.forEach { d.put(JSONObject().put("t", it.type).put("w", it.weight)) }
+            val a = JSONArray()
+            pallets.forEach { a.put(JSONObject().put("t", it.type).put("g", it.gross).put("a", it.tare)) }
+            prefs.edit().putString("packs", p.toString()).putString("defects", d.toString()).putString("pallets", a.toString())
+                .putBoolean("active", active).putString("profile", profile).putInt("width", width.toIntOrNull() ?: 5)
+                .putString("length", length).putInt("rows", rows.toIntOrNull() ?: 15).putString("date", date).apply()
+        }
+
+        fun addPack() {
+            val w = inputWeight.replace(',', '.').toDoubleOrNull() ?: return
+            val r = rows.toIntOrNull() ?: return
+            val widthValue = width.toIntOrNull() ?: return
+            val lengthValue = length.replace(',', '.').toDoubleOrNull() ?: return
+            if (w <= 0 || r <= 0 || widthValue <= 0 || lengthValue <= 0) return
+            val count = (widthValue * 2 - 1) * r - (widthValue - 1)
+            val coefficient = round(w / (count * lengthValue) * 10.0) / 10.0
+            packs.add(Pack(w, r, count, coefficient))
+            inputWeight = ""
+            saveAll()
+        }
+
+        fun addDefect() {
+            val w = inputWeight.replace(',', '.').toDoubleOrNull() ?: return
+            if (w > 0) {
+                defects.add(Defect(defectType, w))
+                inputWeight = ""
+                saveAll()
+            }
+        }
+
+        fun addPallet() {
+            val g = gross.replace(',', '.').toDoubleOrNull() ?: return
+            val t = tare.replace(',', '.').toDoubleOrNull() ?: return
+            if (g > t && t >= 0) {
+                pallets.add(Pallet(palletType, g, t))
+                gross = ""
+                tare = ""
+                saveAll()
+            }
+        }
+
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("StanControl", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                if (screen != "home") TextButton(onClick = { screen = "work" }) { Text("Назад") }
+            }
+            when (screen) {
+                "home" -> {
+                    if (!active) {
+                        Text("Начать день", style = MaterialTheme.typography.titleLarge)
+                        OutlinedTextField(date, { date = it }, label = { Text("Дата") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Text("Профиль")
+                        listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { item ->
+                            FilterChip(selected = profile == item, onClick = {
+                                profile = item
+                                width = when (item) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; else -> "6" }
+                            }, label = { Text(item) })
                         }
-                        if (showArchive) {
-                            Text("Архив смен", style=MaterialTheme.typography.titleLarge)
-                            Text("Текущая запись хранится на этом устройстве. Экспорт PDF добавим следующим этапом.")
-                            Text("Пачек: ${packs.size} · Вес: ${"%.1f".format(total)} кг")
-                            Text("Брак: ${"%.1f".format(defectTotal)} кг")
-                        } else if (!active) {
-                            Text("Новая смена", style=MaterialTheme.typography.titleLarge)
-                            Text("Выбери профиль проката")
-                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                listOf("50","40","30").forEach { v -> FilterChip(selected=angle==v,onClick={angle=v},label={Text("Уголок $v")}) }
-                            }
-                            OutlinedTextField(rowsText,{rowsText=it},label={Text("Рядов в пачке")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true)
-                            Button(onClick={ active=true; save() },modifier=Modifier.fillMaxWidth()) { Text("Начать сессию") }
-                        } else {
-                            Text("Уголок $angle · текущая сессия", style=MaterialTheme.typography.titleLarge)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween) {
-                                Stat("Пачек",packs.size.toString())
-                                Stat("Общий вес","%.1f кг".format(total))
-                                Stat("Брак","%.1f кг".format(defectTotal))
-                            }
-                            val lastPack = packs.lastOrNull()
-                            Card(modifier=Modifier.fillMaxWidth(), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)) {
-                                Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                                    Text("ПОСЛЕДНЯЯ ДОБАВЛЕННАЯ ПАЧКА", style=MaterialTheme.typography.labelMedium, fontWeight=FontWeight.Bold)
-                                    if (lastPack == null) {
-                                        Text("Пока пачек нет", style=MaterialTheme.typography.titleMedium)
-                                    } else {
-                                        Text("Пачка №${lastPack.number}", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween) {
-                                            Stat("Вес", "${"%.1f".format(lastPack.weight)} кг")
-                                            Stat("Коэффициент", lastPack.coefficient.toString())
-                                            Stat("Ряды", lastPack.rows.toString())
-                                        }
-                                    }
-                                }
-                            }
-                            OutlinedTextField(rowsText,{rowsText=it},label={Text("Рядов для следующей пачки")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true,modifier=Modifier.fillMaxWidth())
-                            OutlinedTextField(weightText,{weightText=it},label={Text("Вес пачки, кг")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),singleLine=true,modifier=Modifier.fillMaxWidth())
-                            Button(onClick={
-                                val w=weightText.replace(',','.').toDoubleOrNull()
-                                val r=rowsText.toIntOrNull()
-                                if(w!=null && w>0 && r!=null && r>0) {
-                                    val rodsPerRow=when(angle){"50"->9;"40"->13;else->12}
-                                    val correction=when(angle){"50"-> -4;"40"-> -6;else->0}
-                                    val rods=(r*rodsPerRow+correction).coerceAtLeast(1)
-                                    val coef= w/(rods*6.0)
-                                    packs.add(Pack(packs.size+1,w,r,rods, kotlin.math.floor(coef*10+0.5)/10))
-                                    weightText=""; save()
-                                }
-                            },modifier=Modifier.fillMaxWidth()) { Text("＋ ДОБАВИТЬ ПАЧКУ") }
-                            Divider()
-                            Text("Брак",style=MaterialTheme.typography.titleMedium)
-                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                listOf("Металлолом","В резку").forEach { FilterChip(selected=defectKind==it,onClick={defectKind=it},label={Text(it)}) }
-                            }
-                            OutlinedTextField(defectText,{defectText=it},label={Text("Вес брака, кг")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),singleLine=true,modifier=Modifier.fillMaxWidth())
-                            OutlinedButton(onClick={
-                                val w=defectText.replace(',','.').toDoubleOrNull()
-                                if(w!=null && w>0){defects.add(Defect(defectKind,w));defectText="";save()}
-                            },modifier=Modifier.fillMaxWidth()) { Text("Добавить брак") }
-                            Text("Последние пачки",style=MaterialTheme.typography.titleMedium)
-                            LazyColumn(Modifier.weight(1f)) {
-                                itemsIndexed(packs.reversed().take(8)) { _,p -> Text("#${p.number}   ${p.weight} кг   ${p.rows} рядов   ${p.rods} прутков   коэф. ${p.coefficient}",modifier=Modifier.padding(vertical=5.dp)) }
-                            }
-                            OutlinedButton(onClick={active=false;save()},modifier=Modifier.fillMaxWidth()) { Text("Завершить сессию") }
+                        OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.fillMaxWidth()) { Text("Настроить профиль") }
+                        Button(onClick = { active = true; screen = "work"; saveAll() }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
+                    } else {
+                        Text("Смена " + date, style = MaterialTheme.typography.titleLarge)
+                        Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Продолжить смену") }
+                        OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
+                        OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
+                        OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
+                    }
+                }
+                "work" -> {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        listOf("Пачка", "Брак", "Поддоны").forEach { item ->
+                            FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) })
                         }
                     }
+                    when (mode) {
+                        "Пачка" -> {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Высота, рядов")
+                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    OutlinedButton(onClick = { rows = ((rows.toIntOrNull() ?: 1) - 1).coerceAtLeast(1).toString() }) { Text("-") }
+                                    Text(rows, modifier = Modifier.padding(top = 12.dp), fontWeight = FontWeight.Bold)
+                                    OutlinedButton(onClick = { rows = ((rows.toIntOrNull() ?: 1) + 1).toString() }) { Text("+") }
+                                }
+                            }
+                            OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес пачки, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Button(onClick = { addPack() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить пачку") }
+                        }
+                        "Брак" -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("Резка", "Прокат").forEach { item -> FilterChip(defectType == item, { defectType = item }, label = { Text(item) }) }
+                            }
+                            OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес брака, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Button(onClick = { addDefect() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить брак") }
+                        }
+                        else -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("Прокат", "Резка").forEach { item -> FilterChip(palletType == item, { palletType = item }, label = { Text(item) }) }
+                            }
+                            OutlinedTextField(gross, { gross = it }, label = { Text("Общий вес с грузом, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(tare, { tare = it }, label = { Text("Вес тары, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Text("Чистый вес: " + fmt(((gross.replace(',', '.').toDoubleOrNull() ?: 0.0) - (tare.replace(',', '.').toDoubleOrNull() ?: 0.0)).coerceAtLeast(0.0)) + " кг")
+                            Button(onClick = { addPallet() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
+                        }
+                    }
+                    if (lastPack != null) Text("Последняя пачка: " + fmt(lastPack.weight) + " кг | коэффициент " + fmt(lastPack.coefficient), fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Пачки: " + fmt(packTotal) + " кг", fontWeight = FontWeight.Bold)
+                        Text("Брак: " + fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
+                    OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("На главную") }
+                }
+                "table" -> {
+                    Text("Таблица смены", style = MaterialTheme.typography.titleLarge)
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        item {
+                            OutlinedButton(onClick = { showPacks = !showPacks }, modifier = Modifier.fillMaxWidth()) { Text("Пачки (" + packs.size + ")") }
+                            if (showPacks) packs.forEachIndexed { index, p ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text((index + 1).toString() + ". " + fmt(p.weight) + " кг | " + fmt(p.coefficient) + " | " + p.pieces + " шт", modifier = Modifier.weight(1f))
+                                    TextButton(onClick = { editPack = index; editWeight = p.weight.toString(); editRows = p.rows.toString() }) { Text("Изменить") }
+                                }
+                            }
+                        }
+                        item {
+                            OutlinedButton(onClick = { showDefects = !showDefects }, modifier = Modifier.fillMaxWidth()) { Text("Брак (" + defects.size + ")") }
+                            if (showDefects) defects.forEachIndexed { index, d ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(d.type + ": " + fmt(d.weight) + " кг")
+                                    TextButton(onClick = { editDefect = index; editWeight = d.weight.toString(); editType = d.type }) { Text("Изменить") }
+                                }
+                            }
+                            if (showDefects) Text("Итого брак: " + fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold)
+                        }
+                        item {
+                            OutlinedButton(onClick = { showPallets = !showPallets }, modifier = Modifier.fillMaxWidth()) { Text("Поддоны (" + pallets.size + ")") }
+                            if (showPallets) pallets.forEachIndexed { index, p ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(p.type + ": " + fmt(p.gross) + " - " + fmt(p.tare) + " = " + fmt(p.net) + " кг", modifier = Modifier.weight(1f))
+                                    TextButton(onClick = { editPallet = index; editGross = p.gross.toString(); editTare = p.tare.toString(); editType = p.type }) { Text("Изменить") }
+                                }
+                            }
+                        }
+                    }
+                    Text("Пачки: " + fmt(packTotal) + " кг    Брак: " + fmt(defectTotal) + " кг")
+                    OutlinedButton(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Вернуться к работе") }
+                }
+                "archive" -> {
+                    Text("Архив смен", style = MaterialTheme.typography.titleLarge)
+                    Text(prefs.getString("archive", "Завершённых смен пока нет") ?: "")
+                    Button(onClick = { screen = "home" }) { Text("Назад") }
                 }
             }
         }
-    }
-}
 
-@Composable
-fun Stat(label:String,value:String) {
-    Column { Text(label,style=MaterialTheme.typography.labelMedium); Text(value,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold) }
+        if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Настройки профиля") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(width, { width = it }, label = { Text("Ширина пачки, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(length, { length = it }, label = { Text("Длина штуки, м") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                OutlinedTextField(rows, { rows = it }, label = { Text("Высота по умолчанию, рядов") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+        }, confirmButton = { TextButton(onClick = { showSettings = false; saveAll() }) { Text("Сохранить") } })
+
+        if (editPack >= 0) AlertDialog(onDismissRequest = { editPack = -1 }, title = { Text("Изменить пачку") }, text = {
+            Column {
+                OutlinedTextField(editWeight, { editWeight = it }, label = { Text("Вес, кг") })
+                OutlinedTextField(editRows, { editRows = it }, label = { Text("Ряды") })
+            }
+        }, confirmButton = { TextButton(onClick = {
+            val w = editWeight.replace(',', '.').toDoubleOrNull()
+            val r = editRows.toIntOrNull()
+            val widthValue = width.toIntOrNull() ?: 5
+            val lengthValue = length.replace(',', '.').toDoubleOrNull() ?: 6.0
+            if (w != null && r != null && w > 0 && r > 0) {
+                val count = (widthValue * 2 - 1) * r - (widthValue - 1)
+                packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue) * 10.0) / 10.0)
+                saveAll()
+            }
+            editPack = -1
+        }) { Text("Сохранить") } })
+
+        if (editDefect >= 0) AlertDialog(onDismissRequest = { editDefect = -1 }, title = { Text("Изменить брак") }, text = {
+            Column {
+                OutlinedTextField(editType, { editType = it }, label = { Text("Категория") })
+                OutlinedTextField(editWeight, { editWeight = it }, label = { Text("Вес, кг") })
+            }
+        }, confirmButton = { TextButton(onClick = {
+            val w = editWeight.replace(',', '.').toDoubleOrNull()
+            if (w != null && w > 0) { defects[editDefect] = Defect(editType, w); saveAll() }
+            editDefect = -1
+        }) { Text("Сохранить") } })
+
+        if (editPallet >= 0) AlertDialog(onDismissRequest = { editPallet = -1 }, title = { Text("Изменить поддон") }, text = {
+            Column {
+                OutlinedTextField(editType, { editType = it }, label = { Text("Категория") })
+                OutlinedTextField(editGross, { editGross = it }, label = { Text("Общий вес") })
+                OutlinedTextField(editTare, { editTare = it }, label = { Text("Тара") })
+            }
+        }, confirmButton = { TextButton(onClick = {
+            val g = editGross.replace(',', '.').toDoubleOrNull()
+            val t = editTare.replace(',', '.').toDoubleOrNull()
+            if (g != null && t != null && g > t) { pallets[editPallet] = Pallet(editType, g, t); saveAll() }
+            editPallet = -1
+        }) { Text("Сохранить") } })
+
+        if (confirmFinish) AlertDialog(onDismissRequest = { confirmFinish = false }, title = { Text("Завершить смену?") },
+            text = { Text("Смена будет сохранена в архиве.") },
+            confirmButton = { TextButton(onClick = {
+                val summary = "Смена " + date + " | " + profile + " | пачки " + fmt(packTotal) + " кг | брак " + fmt(defectTotal) + " кг | поддонов " + pallets.size
+                prefs.edit().putString("archive", summary).putBoolean("active", false).apply()
+                active = false
+                screen = "home"
+                confirmFinish = false
+            }) { Text("Завершить") } },
+            dismissButton = { TextButton(onClick = { confirmFinish = false }) { Text("Отмена") } })
+    }
+
+    private fun today(): String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
+    private fun fmt(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
+    private fun readPacks(): List<Pack> {
+        val a = JSONArray(prefs.getString("packs", "[]"))
+        return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), o.getDouble("k")) }
+    }
+    private fun readDefects(): List<Defect> {
+        val a = JSONArray(prefs.getString("defects", "[]"))
+        return (0 until a.length()).map { val o = a.getJSONObject(it); Defect(o.getString("t"), o.getDouble("w")) }
+    }
+    private fun readPallets(): List<Pallet> {
+        val a = JSONArray(prefs.getString("pallets", "[]"))
+        return (0 until a.length()).map { val o = a.getJSONObject(it); Pallet(o.getString("t"), o.getDouble("g"), o.getDouble("a")) }
+    }
 }
