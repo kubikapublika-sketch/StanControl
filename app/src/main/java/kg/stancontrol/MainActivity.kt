@@ -1,6 +1,7 @@
 package kg.stancontrol
 
 import android.os.Bundle
+import android.app.DatePickerDialog
 import android.content.Intent
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
@@ -22,6 +23,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.round
 
@@ -69,6 +71,9 @@ class MainActivity : ComponentActivity() {
         var editType by remember { mutableStateOf("") }
         var confirmFinish by remember { mutableStateOf(false) }
         var archiveShiftJson by remember { mutableStateOf<String?>(null) }
+        var archiveDateFilter by remember { mutableStateOf("") }
+        var showPreviousYears by remember { mutableStateOf(false) }
+        var archiveYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
 
         val packs = remember { mutableStateListOf<Pack>().apply { addAll(readPacks()) } }
         val defects = remember { mutableStateListOf<Defect>().apply { addAll(readDefects()) } }
@@ -255,22 +260,53 @@ class MainActivity : ComponentActivity() {
                     OutlinedButton(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Вернуться к работе") }
                 }
                 "archive" -> {
-                    Text("Архив смен", style = MaterialTheme.typography.titleLarge)
+                    Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
-                    if (savedShifts.length() == 0) {
-                        Text("Завершённых смен пока нет")
+                    val allShifts = (0 until savedShifts.length()).map { savedShifts.getJSONObject(it) }
+                    val years = allShifts.mapNotNull { it.optString("date").takeLast(4).toIntOrNull() }.distinct().sortedDescending()
+                    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+                    val visibleYears = if (showPreviousYears) years else years.filter { it >= currentYear }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (visibleYears.ifEmpty { listOf(currentYear) }).forEach { year ->
+                            FilterChip(selected = archiveYear == year.toString(), onClick = { archiveYear = year.toString(); archiveDateFilter = "" }, label = { Text(year.toString()) })
+                        }
+                        if (years.any { it < currentYear }) {
+                            FilterChip(selected = showPreviousYears, onClick = { showPreviousYears = !showPreviousYears }, label = { Text(if (showPreviousYears) "Скрыть старые" else "Предыдущие годы") })
+                        }
+                    }
+                    OutlinedButton(onClick = {
+                        val cal = Calendar.getInstance()
+                        if (archiveDateFilter.isNotBlank()) {
+                            try { cal.time = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).parse(archiveDateFilter) ?: Date() } catch (_: Exception) {}
+                        } else {
+                            archiveYear.toIntOrNull()?.let { cal.set(Calendar.YEAR, it) }
+                        }
+                        DatePickerDialog(this@MainActivity, { _, year, month, day ->
+                            archiveDateFilter = String.format(Locale.getDefault(), "%02d.%02d.%04d", day, month + 1, year)
+                            archiveYear = year.toString()
+                        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
+                    }, modifier = Modifier.fillMaxWidth()) { Text(if (archiveDateFilter.isBlank()) "Выбрать день в календаре" else "Дата: $archiveDateFilter · изменить") }
+                    if (archiveDateFilter.isNotBlank()) {
+                        TextButton(onClick = { archiveDateFilter = "" }) { Text("Показать весь выбранный год") }
+                    }
+                    val filtered = allShifts.filter { shift ->
+                        val shiftDate = shift.optString("date")
+                        if (archiveDateFilter.isNotBlank()) shiftDate == archiveDateFilter
+                        else shiftDate.endsWith(archiveYear)
+                    }.sortedByDescending { it.optString("date") }
+                    Text(if (archiveDateFilter.isNotBlank()) "Смены за $archiveDateFilter" else "Смены за $archiveYear год", fontWeight = FontWeight.SemiBold)
+                    if (filtered.isEmpty()) {
+                        Text(if (allShifts.isEmpty()) "Архив пока пуст. Завершённые смены появятся здесь." else "За выбранный период смен нет.")
                     } else {
                         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(savedShifts.length()) { index ->
-                                val shift = savedShifts.getJSONObject(savedShifts.length() - 1 - index)
+                            items(filtered.size) { index ->
+                                val shift = filtered[index]
                                 Card(Modifier.fillMaxWidth()) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                         Text(shift.optString("date") + " · " + shift.optString("profile"), fontWeight = FontWeight.Bold)
-                                        Text("Пачки: " + (shift.optJSONArray("packs")?.length() ?: 0) + " · " + fmt(shift.optDouble("packTotal")) + " кг")
+                                        Text("Пачек: " + (shift.optJSONArray("packs")?.length() ?: 0) + " · " + fmt(shift.optDouble("packTotal")) + " кг")
                                         Text("Брак: " + fmt(shift.optDouble("defectTotal")) + " кг")
-                                        Button(onClick = { archiveShiftJson = shift.toString(); screen = "archive_detail" }) {
-                                            Text("Открыть смену")
-                                        }
+                                        Button(onClick = { archiveShiftJson = shift.toString(); screen = "archive_detail" }, modifier = Modifier.fillMaxWidth()) { Text("Открыть полный бланк") }
                                     }
                                 }
                             }
