@@ -43,9 +43,12 @@ class MainActivity : ComponentActivity() {
         var screen by remember { mutableStateOf("home") }
         var mode by remember { mutableStateOf("Пачка") }
         var profile by remember { mutableStateOf(prefs.getString("profile", "Уголок 50") ?: "Уголок 50") }
-        var width by remember { mutableStateOf(prefs.getString("profile_50_width", "5") ?: "5") }
-        var length by remember { mutableStateOf(prefs.getString("profile_50_length", "6") ?: "6") }
-        var rows by remember { mutableStateOf(prefs.getString("profile_50_rows", "15") ?: "15") }
+        val initialProfileKey = (prefs.getString("profile", "Уголок 50") ?: "Уголок 50").substringAfterLast(" ")
+        val initialWidth = when (initialProfileKey) { "40" -> "7"; "30" -> "6"; else -> "5" }
+        val initialRows = if (initialProfileKey == "40") "20" else "15"
+        var width by remember { mutableStateOf(prefs.getString("profile_${initialProfileKey}_width", initialWidth) ?: initialWidth) }
+        var length by remember { mutableStateOf(prefs.getString("profile_${initialProfileKey}_length", "6") ?: "6") }
+        var rows by remember { mutableStateOf(prefs.getString("profile_${initialProfileKey}_rows", initialRows) ?: initialRows) }
         var date by remember { mutableStateOf(prefs.getString("date", today()) ?: today()) }
         var inputWeight by remember { mutableStateOf("") }
         var gross by remember { mutableStateOf("") }
