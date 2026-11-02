@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
             prefs.edit().putString("packs", p.toString()).putString("defects", d.toString()).putString("pallets", a.toString())
                 .putBoolean("active", active).putString("profile", profile).putInt("width", width.toIntOrNull() ?: 5)
                 .putString("profile_${profile.substringAfterLast(" ")}_length", length).putString("profile_${profile.substringAfterLast(" ")}_rows", rows).putString("profile_${profile.substringAfterLast(" ")}_width", width).putString("date", date).apply()
+            writeAutomaticBackup()
         }
 
         fun addPack() {
@@ -169,6 +170,7 @@ class MainActivity : ComponentActivity() {
                         OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
                     OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                         OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
+                        OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
                         OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
                     }
                 }
@@ -421,6 +423,7 @@ class MainActivity : ComponentActivity() {
                                 .put("pallets", JSONArray().also { a -> historicalPallets.forEach { p -> a.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
                             saved.put(entry)
                             prefs.edit().putString("shifts_archive", saved.toString()).apply()
+                            writeAutomaticBackup()
                             archiveYear = historicalDate.takeLast(4)
                             archiveDateFilter = historicalDate
                             screen = "archive"
@@ -550,6 +553,47 @@ class MainActivity : ComponentActivity() {
                 confirmFinish = false
             }) { Text("Завершить") } },
             dismissButton = { TextButton(onClick = { confirmFinish = false }) { Text("Отмена") } })
+    }
+
+    private fun writeAutomaticBackup(): File {
+        val backupDir = File(filesDir, "backups").apply { mkdirs() }
+        val backupFile = File(backupDir, "StanControl_auto_backup.json")
+        val data = JSONObject()
+        prefs.all.forEach { (key, value) ->
+            when (value) {
+                is String, is Boolean, is Int, is Long, is Float, is Double -> data.put(key, value)
+            }
+        }
+        val root = JSONObject()
+            .put("app", "StanControl")
+            .put("backupVersion", 1)
+            .put("createdAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
+            .put("data", data)
+        val temp = File(backupDir, "backup.tmp")
+        temp.writeText(root.toString(2), Charsets.UTF_8)
+        if (backupFile.exists()) backupFile.delete()
+        if (!temp.renameTo(backupFile)) {
+            temp.copyTo(backupFile, overwrite = true)
+            temp.delete()
+        }
+        return backupFile
+    }
+
+    private fun shareBackup() {
+        try {
+            val file = writeAutomaticBackup()
+            val uri = FileProvider.getUriForFile(this, "kg.stancontrol.fileprovider", file)
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Резервная копия StanControl")
+                putExtra(Intent.EXTRA_TEXT, "Резервная копия данных StanControl")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(sendIntent, "Отправить резервную копию"))
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(this, "Не удалось создать бекап: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
