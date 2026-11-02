@@ -656,7 +656,7 @@ class MainActivity : ComponentActivity() {
 
     private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
         val pdf = PdfDocument()
-        val page = pdf.startPage(PdfDocument.PageInfo.Builder(842, 595, 1).create())
+        val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
         val canvas = page.canvas
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val left = 30f
