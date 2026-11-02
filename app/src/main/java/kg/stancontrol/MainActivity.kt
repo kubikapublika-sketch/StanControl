@@ -106,6 +106,10 @@ class MainActivity : ComponentActivity() {
         var editTare by remember { mutableStateOf("") }
         var editType by remember { mutableStateOf("") }
         var confirmFinish by remember { mutableStateOf(false) }
+        var deletePackIndex by remember { mutableStateOf(-1) }
+        var deleteDefectIndex by remember { mutableStateOf(-1) }
+        var deletePalletIndex by remember { mutableStateOf(-1) }
+        var deleteArchiveDate by remember { mutableStateOf("") }
         var archiveShiftJson by remember { mutableStateOf<String?>(null) }
         var archiveDateFilter by remember { mutableStateOf("") }
         var showPreviousYears by remember { mutableStateOf(false) }
@@ -285,6 +289,7 @@ class MainActivity : ComponentActivity() {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text((index + 1).toString() + ". " + fmt(p.weight) + " кг | " + fmt(p.coefficient) + " | " + p.pieces + " шт", modifier = Modifier.weight(1f))
                                     TextButton(onClick = { editPack = index; editWeight = p.weight.toString(); editRows = p.rows.toString() }) { Text("Изменить") }
+                                    TextButton(onClick = { deletePackIndex = index }) { Text("Удалить") }
                                 }
                             }
                         }
@@ -294,6 +299,7 @@ class MainActivity : ComponentActivity() {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(d.type + ": " + fmt(d.weight) + " кг")
                                     TextButton(onClick = { editDefect = index; editWeight = d.weight.toString(); editType = d.type }) { Text("Изменить") }
+                                    TextButton(onClick = { deleteDefectIndex = index }) { Text("Удалить") }
                                 }
                             }
                             if (showDefects) Text("Итого брак: " + fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold)
@@ -304,6 +310,7 @@ class MainActivity : ComponentActivity() {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(p.type + ": " + fmt(p.gross) + " - " + fmt(p.tare) + " = " + fmt(p.net) + " кг", modifier = Modifier.weight(1f))
                                     TextButton(onClick = { editPallet = index; editGross = p.gross.toString(); editTare = p.tare.toString(); editType = p.type }) { Text("Изменить") }
+                                    TextButton(onClick = { deletePalletIndex = index }) { Text("Удалить") }
                                 }
                             }
                         }
@@ -368,6 +375,7 @@ class MainActivity : ComponentActivity() {
                                         Text("Пачек: " + (shift.optJSONArray("packs")?.length() ?: 0) + " · " + fmt(shift.optDouble("packTotal")) + " кг")
                                         Text("Брак: " + fmt(shift.optDouble("defectTotal")) + " кг")
                                         Button(onClick = { archiveShiftJson = shift.toString(); screen = "archive_detail" }, modifier = Modifier.fillMaxWidth()) { Text("Открыть полный бланк") }
+                                        TextButton(onClick = { deleteArchiveDate = shift.optString("date") }) { Text("Удалить этот день из архива") }
                                     }
                                 }
                             }
@@ -513,6 +521,19 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        if (deletePackIndex >= 0) AlertDialog(onDismissRequest = { deletePackIndex = -1 }, title = { Text("Удалить пачку?") }, text = { Text("Запись будет удалена из текущей смены.") }, confirmButton = { TextButton(onClick = { if (deletePackIndex in packs.indices) packs.removeAt(deletePackIndex); deletePackIndex = -1; saveAll() }) { Text("Удалить") } }, dismissButton = { TextButton(onClick = { deletePackIndex = -1 }) { Text("Отмена") } })
+        if (deleteDefectIndex >= 0) AlertDialog(onDismissRequest = { deleteDefectIndex = -1 }, title = { Text("Удалить брак?") }, text = { Text("Запись будет удалена из текущей смены.") }, confirmButton = { TextButton(onClick = { if (deleteDefectIndex in defects.indices) defects.removeAt(deleteDefectIndex); deleteDefectIndex = -1; saveAll() }) { Text("Удалить") } }, dismissButton = { TextButton(onClick = { deleteDefectIndex = -1 }) { Text("Отмена") } })
+        if (deletePalletIndex >= 0) AlertDialog(onDismissRequest = { deletePalletIndex = -1 }, title = { Text("Удалить поддон?") }, text = { Text("Запись будет удалена из текущей смены.") }, confirmButton = { TextButton(onClick = { if (deletePalletIndex in pallets.indices) pallets.removeAt(deletePalletIndex); deletePalletIndex = -1; saveAll() }) { Text("Удалить") } }, dismissButton = { TextButton(onClick = { deletePalletIndex = -1 }) { Text("Отмена") } })
+        if (deleteArchiveDate.isNotBlank()) AlertDialog(onDismissRequest = { deleteArchiveDate = "" }, title = { Text("Удалить день из архива?") }, text = { Text("Будет удалён весь бланк за $deleteArchiveDate: пачки, брак и поддоны. Текущая смена не затрагивается.") }, confirmButton = { TextButton(onClick = {
+            val saved = JSONArray(prefs.getString("shifts_archive", "[]"))
+            val kept = JSONArray()
+            for (i in 0 until saved.length()) { val item = saved.getJSONObject(i); if (item.optString("date") != deleteArchiveDate) kept.put(item) }
+            prefs.edit().putString("shifts_archive", kept.toString()).apply()
+            writeAutomaticBackup()
+            if (archiveDateFilter == deleteArchiveDate) archiveDateFilter = ""
+            if ((archiveShiftJson?.let { JSONObject(it).optString("date") } ?: "") == deleteArchiveDate) { archiveShiftJson = null; screen = "archive" }
+            deleteArchiveDate = ""
+        }) { Text("Удалить") } }, dismissButton = { TextButton(onClick = { deleteArchiveDate = "" }) { Text("Отмена") } })
         if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Настройки профиля") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(width, { width = it }, label = { Text("Ширина пачки, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
