@@ -238,7 +238,19 @@ class MainActivity : ComponentActivity() {
                 }
                 "archive" -> {
                     Text("Архив смен", style = MaterialTheme.typography.titleLarge)
-                    Text(prefs.getString("archive", "Завершённых смен пока нет") ?: "")
+                    val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
+                    if (savedShifts.length() == 0) {
+                        Text(prefs.getString("archive", "Завершённых смен пока нет") ?: "Завершённых смен пока нет")
+                    } else {
+                        for (i in savedShifts.length() - 1 downTo 0) {
+                            val shift = savedShifts.getJSONObject(i)
+                            Text(
+                                shift.optString("date") + " | " + shift.optString("profile") +
+                                    " | пачки " + fmt(shift.optDouble("packTotal")) + " кг" +
+                                    " | брак " + fmt(shift.optDouble("defectTotal")) + " кг"
+                            )
+                        }
+                    }
                     Button(onClick = { screen = "home" }) { Text("Назад") }
                 }
             }
@@ -297,9 +309,26 @@ class MainActivity : ComponentActivity() {
         if (confirmFinish) AlertDialog(onDismissRequest = { confirmFinish = false }, title = { Text("Завершить смену?") },
             text = { Text("Смена будет сохранена в архиве.") },
             confirmButton = { TextButton(onClick = {
-                val summary = "Смена " + date + " | " + profile + " | пачки " + fmt(packTotal) + " кг | брак " + fmt(defectTotal) + " кг | поддонов " + pallets.size
-                prefs.edit().putString("archive", summary).putBoolean("active", false).apply()
+                val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
+                val shift = JSONObject()
+                    .put("date", date)
+                    .put("profile", profile)
+                    .put("packTotal", packTotal)
+                    .put("defectTotal", defectTotal)
+                    .put("packs", JSONArray().also { array -> packs.forEach { p -> array.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
+                    .put("defects", JSONArray().also { array -> defects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
+                    .put("pallets", JSONArray().also { array -> pallets.forEach { p -> array.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
+                savedShifts.put(shift)
+                prefs.edit().putString("shifts_archive", savedShifts.toString())
+                    .putString("archive", "Сохранено смен: " + savedShifts.length())
+                    .putBoolean("active", false)
+                    .putString("packs", "[]").putString("defects", "[]").putString("pallets", "[]")
+                    .apply()
+                packs.clear()
+                defects.clear()
+                pallets.clear()
                 active = false
+                saveAll()
                 screen = "home"
                 confirmFinish = false
             }) { Text("Завершить") } },
