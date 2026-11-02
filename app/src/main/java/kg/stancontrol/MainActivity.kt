@@ -713,8 +713,12 @@ class MainActivity : ComponentActivity() {
         section("1. ГОТОВАЯ ПРОДУКЦИЯ · ПАЧКИ")
         val packXs = listOf(left + 10f, left + 95f, left + 220f, left + 365f)
         tableHeader(listOf("№", "КОЭФФИЦИЕНТ", "ВЕС, КГ", "КОЛ-ВО, ШТ"), packXs)
-        packs.forEachIndexed { i, p ->
-            tableRow(listOf((i + 1).toString(), fmt(p.coefficient), fmt(p.weight), p.pieces.toString()), packXs)
+        if (packs.isEmpty()) {
+            tableRow(listOf("-", "0.0", "0.0", "0"), packXs)
+        } else {
+            packs.forEachIndexed { i, p ->
+                tableRow(listOf((i + 1).toString(), fmt(p.coefficient), fmt(p.weight), p.pieces.toString()), packXs)
+            }
         }
         total("ИТОГО ГОТОВАЯ ПРОДУКЦИЯ", "${fmt(packs.sumOf { it.weight })} кг     ${packs.sumOf { it.pieces }} шт")
 
@@ -735,12 +739,20 @@ class MainActivity : ComponentActivity() {
         val cuttingPallets = pallets.filter { it.type == "Резка" }
         section("3. ПОДДОНЫ ПРОКАТ")
         tableHeader(listOf("№", "БРУТТО, КГ", "ТАРА, КГ", "НЕТТО, КГ"), palletXs)
-        rolling.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
+        if (rolling.isEmpty()) {
+            tableRow(listOf("-", "0.0", "0.0", "0.0"), palletXs)
+        } else {
+            rolling.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
+        }
         total("ИТОГО ПОДДОНЫ ПРОКАТ", "${fmt(rolling.sumOf { it.net })} кг")
 
         section("4. ПОДДОНЫ РЕЗКА")
         tableHeader(listOf("№", "БРУТТО, КГ", "ТАРА, КГ", "НЕТТО, КГ"), palletXs)
-        cuttingPallets.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
+        if (cuttingPallets.isEmpty()) {
+            tableRow(listOf("-", "0.0", "0.0", "0.0"), palletXs)
+        } else {
+            cuttingPallets.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
+        }
         total("ИТОГО ПОДДОНЫ РЕЗКА", "${fmt(cuttingPallets.sumOf { it.net })} кг")
         total("ВСЕГО ПОДДОНЫ · НЕТТО", "${fmt(pallets.sumOf { it.net })} кг")
 
