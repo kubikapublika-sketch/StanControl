@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
         var editTare by remember { mutableStateOf("") }
         var editType by remember { mutableStateOf("") }
         var confirmFinish by remember { mutableStateOf(false) }
+        var archiveShiftJson by remember { mutableStateOf<String?>(null) }
 
         val packs = remember { mutableStateListOf<Pack>().apply { addAll(readPacks()) } }
         val defects = remember { mutableStateListOf<Defect>().apply { addAll(readDefects()) } }
@@ -257,18 +258,65 @@ class MainActivity : ComponentActivity() {
                     Text("Архив смен", style = MaterialTheme.typography.titleLarge)
                     val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
                     if (savedShifts.length() == 0) {
-                        Text(prefs.getString("archive", "Завершённых смен пока нет") ?: "Завершённых смен пока нет")
+                        Text("Завершённых смен пока нет")
                     } else {
-                        for (i in savedShifts.length() - 1 downTo 0) {
-                            val shift = savedShifts.getJSONObject(i)
-                            Text(
-                                shift.optString("date") + " | " + shift.optString("profile") +
-                                    " | пачки " + fmt(shift.optDouble("packTotal")) + " кг" +
-                                    " | брак " + fmt(shift.optDouble("defectTotal")) + " кг"
-                            )
+                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(savedShifts.length()) { index ->
+                                val shift = savedShifts.getJSONObject(savedShifts.length() - 1 - index)
+                                Card(Modifier.fillMaxWidth()) {
+                                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Text(shift.optString("date") + " · " + shift.optString("profile"), fontWeight = FontWeight.Bold)
+                                        Text("Пачки: " + shift.optJSONArray("packs")?.length().orZero() + " · " + fmt(shift.optDouble("packTotal")) + " кг")
+                                        Text("Брак: " + fmt(shift.optDouble("defectTotal")) + " кг")
+                                        Button(onClick = { archiveShiftJson = shift.toString(); screen = "archive_detail" }) {
+                                            Text("Открыть смену")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    Button(onClick = { screen = "home" }) { Text("Назад") }
+                    OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("Назад") }
+                }
+                "archive_detail" -> {
+                    val shift = JSONObject(archiveShiftJson ?: "{}")
+                    val ap = shift.optJSONArray("packs") ?: JSONArray()
+                    val ad = shift.optJSONArray("defects") ?: JSONArray()
+                    val aa = shift.optJSONArray("pallets") ?: JSONArray()
+                    Text(shift.optString("date") + " · " + shift.optString("profile"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        item { Text("ПАЧКИ", fontWeight = FontWeight.Bold) }
+                        items(ap.length()) { i ->
+                            val item = ap.getJSONObject(i)
+                            Text("${i + 1}. ${fmt(item.optDouble("w"))} кг | К ${fmt(item.optDouble("k"))} | ${item.optInt("n")} шт | ${item.optInt("r")} рядов")
+                        }
+                        item { Text("БРАК", fontWeight = FontWeight.Bold) }
+                        items(ad.length()) { i ->
+                            val item = ad.getJSONObject(i)
+                            Text(item.optString("t") + ": " + fmt(item.optDouble("w")) + " кг")
+                        }
+                        item { Text("ПОДДОНЫ", fontWeight = FontWeight.Bold) }
+                        items(aa.length()) { i ->
+                            val item = aa.getJSONObject(i)
+                            val grossValue = item.optDouble("g")
+                            val tareValue = item.optDouble("a")
+                            Text(item.optString("t") + ": брутто " + fmt(grossValue) + " · тара " + fmt(tareValue) + " · нетто " + fmt(grossValue - tareValue) + " кг")
+                        }
+                    }
+                    OutlinedButton(onClick = {
+                        val archivedPacks = (0 until ap.length()).map { i ->
+                            val item = ap.getJSONObject(i)
+                            Pack(item.optDouble("w"), item.optInt("r"), item.optInt("n"), item.optDouble("k"), item.optInt("width", 5), item.optDouble("length", 6.0))
+                        }
+                        val archivedDefects = (0 until ad.length()).map { i ->
+                            val item = ad.getJSONObject(i); Defect(item.optString("t"), item.optDouble("w"))
+                        }
+                        val archivedPallets = (0 until aa.length()).map { i ->
+                            val item = aa.getJSONObject(i); Pallet(item.optString("t"), item.optDouble("g"), item.optDouble("a"))
+                        }
+                        sharePdf(shift.optString("date"), shift.optString("profile"), archivedPacks, archivedDefects, archivedPallets)
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
+                    OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("К архиву") }
                 }
             }
         }
