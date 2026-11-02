@@ -13,20 +13,72 @@
 @media print{body{background:#fff;color:#111;font-size:11px}.wrap{max-width:none;padding:0}.no-print,.tabs,.footer{display:none!important}.card{background:#fff;border:0;padding:0;margin:0 0 12px}.item{background:#fff;border:1px solid #bbb;color:#111;break-inside:avoid}.meta,.muted,.sub,.field label{color:#444}.stat{background:#fff;border:1px solid #bbb}.stat span{color:#444}.stat b{color:#111}.printhead{display:block!important}button{display:none}input,select{border:0;background:#fff;color:#111;padding:0}.pill{border:1px solid #999;background:#fff;color:#111}.result{background:#fff;border:1px solid #999;color:#111}.result b{color:#111}}
 .printhead{display:none}
 .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.keypad button{min-height:64px;font-size:25px;border-radius:13px;background:#22344d;color:#fff;border:1px solid #38506e}.keypad button.ok{background:#58a6ff;color:#071426;font-size:19px}.keypad button.erase{background:#49252e;color:#ffdce0;font-size:18px}.weight-display{font-size:36px!important;font-weight:800;text-align:center;letter-spacing:1px;padding:18px!important;min-height:78px}.weight-label{text-align:center;color:var(--muted);font-size:13px;margin-bottom:7px}
+
+/* StanControl mobile workflow */
+@media(max-width:700px){
+ .wrap{padding:10px 10px 28px}
+ .top{margin-bottom:8px;align-items:center}
+ .brand{font-size:18px}
+ .sub{font-size:11px}
+ .tabs{margin:8px 0}
+ #sheet>.card:first-child{padding:10px;margin-bottom:9px}
+ #sheet>.card:first-child .grid{grid-template-columns:1fr 1fr;gap:7px}
+ #formulaPreview{display:none}
+ #sheet>.card:first-child .hint{font-size:10px}
+ #sheet .twocol{display:block}
+ #sheet .twocol>section:first-child{padding:12px}
+ #sheet .twocol>section:first-child h2{display:none}
+ #sheet .twocol>section:first-child .result{display:none}
+ #packStatus{display:none}
+ #sheet>.twocol>section:first-child .field:has(#packStatus){display:none}
+ #weightKeypad button{min-height:58px;font-size:26px}
+ #packWeight{font-size:34px!important}
+ #addPack{min-height:58px;font-size:19px}
+ #sheet>.twocol>section:nth-child(2){padding:12px}
+ #sheet>.twocol>section:nth-child(2) h2{margin-bottom:8px}
+ #defectWeight{font-size:24px;text-align:center}
+ #sheet>.card:has(#goodTotal){padding:10px;margin-bottom:9px}
+ #sheet>.card:has(#goodTotal) h2{display:none}
+ #sheet>.card:has(#goodTotal) .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+ #sheet>.card:has(#goodTotal) .stat{padding:8px}
+ #sheet>.card:has(#goodTotal) .stat b{font-size:17px}
+ #sheet>.card:has(#goodTotal) .stat span{font-size:10px}
+ #sheet>.twocol:last-of-type{display:block}
+}
+.session-counts{display:flex;gap:7px;align-items:stretch;margin:8px 0 12px}
+.session-count{background:#1a2940;border:1px solid #293950;border-radius:10px;padding:7px 10px;min-width:0;flex:1}
+.session-count span{display:block;color:#9aabc0;font-size:10px}
+.session-count b{font-size:19px}
+.session-start{max-width:520px;margin:14vh auto;padding:22px}
+.session-start h2{margin-top:0}
+#sessionStart select,#sessionStart input{font-size:18px;padding:15px}
+#startSession{width:100%;min-height:58px;font-size:18px;margin-top:12px}
+
 </style>
 </head>
 <body>
 <div class="wrap">
-<header class="top"><div><div class="brand">Stan<span>Control</span></div><div class="sub">Производственный бланк · первый рабочий прототип</div></div><div class="sub" id="saveState">Локальное сохранение</div></header>
+<header class="top"><div><div class="brand">Stan<span>Control</span></div><div class="sub">Производственная сессия</div></div><div class="sub" id="saveState">Локальное сохранение</div></header>
+<section id="sessionStart" class="card session-start">
+ <h2>Начать сессию</h2>
+ <div class="field"><label for="sessionDate">Дата производства</label><input id="sessionDate" type="date"></div>
+ <div class="field" style="margin-top:12px"><label for="sessionTemplate">Выбери шаблон</label><select id="sessionTemplate"></select></div>
+ <button id="startSession">Начать работу</button>
+</section>
 <nav class="tabs no-print"><button class="tab active" data-tab="sheet">Бланк</button><button class="tab" data-tab="templates">Шаблоны и формулы</button></nav>
-<main id="sheet">
+<main id="sheet" class="hidden">
 <div class="card">
  <div class="sectionline"><h2>Рабочий день</h2><span class="pill" id="dayState">Открыт</span></div>
+ <div class="session-counts no-print">
+  <div class="session-count"><span>ПАЧЕК ЗАПИСАНО</span><b id="quickPackCount">0</b></div>
+  <div class="session-count"><span>ОБЩИЙ ВЕС ПАЧЕК</span><b id="quickPackWeight">0 кг</b></div>
+  <div class="session-count"><span>БРАК</span><b id="quickDefectWeight">0 кг</b></div>
+ </div>
  <div class="grid">
   <div class="field"><label for="workDate">Дата</label><input id="workDate" type="date"></div>
   <div class="field"><label for="angleType">Вид уголка / шаблон</label><select id="angleType"></select></div>
   <div class="field"><label for="dailyRows">Текущее количество рядов</label><input id="dailyRows" type="number" min="1" step="1" value="15"></div>
-  <div class="field"><label>Формула выбранного шаблона</label><input id="formulaPreview" readonly></div>
+  <div class="field hidden"><label>Формула выбранного шаблона</label><input id="formulaPreview" readonly></div>
  </div>
  <div class="hint">Количество рядов задаётся здесь в течение дня. Изменение влияет только на новые пачки. У каждой уже созданной пачки свои сохранённые ряды и параметры расчёта.</div>
 </div>
@@ -34,14 +86,14 @@
  <section class="card">
   <h2>Добавить пачку</h2>
   <div class="field"><label class="weight-label" for="packWeight">ВЕС ПАЧКИ, КГ</label><input id="packWeight" class="weight-display" type="text" inputmode="none" readonly placeholder="0"></div><div class="keypad no-print" id="weightKeypad"><button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" class="erase" data-key="clear">Сброс</button><button type="button" data-key="0">0</button><button type="button" class="erase" data-key="back">⌫</button></div>
-  <div class="field" style="margin-top:10px"><label for="packStatus">Куда направить пачку</label><select id="packStatus"><option value="good">Годная продукция</option><option value="rework">На переборку / ОТК</option><option value="cutting">В резку</option></select></div>
+  <div class="hidden"><select id="packStatus"><option value="good">Годная продукция</option><option value="rework">На переборку / ОТК</option><option value="cutting">В резку</option></select></div>
   <div class="result"><div class="muted">Предварительный расчёт</div><div id="previewText">Укажи вес пачки</div></div>
   <button id="addPack" style="width:100%;margin-top:12px">Добавить пачку</button>
  </section>
  <section class="card">
-  <h2>Добавить брак</h2>
+  <h2>Брак отдельно</h2>
   <div class="field"><label for="defectWeight">Вес брака, кг</label><input id="defectWeight" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Только вес"></div>
-  <div class="field" style="margin-top:10px"><label for="defectStatus">Назначение брака</label><select id="defectStatus"><option value="rework">На переработку / резку</option><option value="scrap">Сразу в лом</option></select></div>
+  <div class="field" style="margin-top:10px"><label for="defectStatus">Назначение брака</label><select id="defectStatus"><option value="cutting">В резку</option><option value="scrap">В металлолом</option></select></div>
   <div class="hint">Для брака коэффициент не рассчитывается.</div>
   <button id="addDefect" class="secondary" style="width:100%;margin-top:12px">Добавить брак</button>
  </section>
@@ -106,16 +158,19 @@ function kg(v){return num(v).toLocaleString('ru-RU',{maximumFractionDigits:1})+'
 function roundHalfUp(value,digits){const p=10**digits;return Math.sign(value)*Math.floor(Math.abs(value)*p+0.5+1e-9)/p}
 function calc(weight,rows,t){const rods=Math.max(0,Math.round(rows*t.rodsPerRow+t.lastAdjustment));const coefficient=rods>0&&t.rodLength>0?roundHalfUp(weight/(rods*t.rodLength),t.roundDigits):null;return{rods,coefficient}}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function statusName(s){return({good:'Годная продукция',rework:'На переборку / ОТК',cutting:'В резку',scrap:'Сразу в лом'})[s]||s}
+function statusName(s){return({good:'Годная продукция',rework:'На переборку / ОТК',cutting:'В резку',scrap:'В металлолом'})[s]||s}
 function refreshTemplateSelect(){const el=document.getElementById('angleType'),old=el.value;el.innerHTML=db.templates.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');if(db.templates.some(t=>t.id===old))el.value=old;else if(db.templates.length)el.value=db.templates[0].id;updateFormula()}
 function updateFormula(){const t=template();document.getElementById('formulaPreview').value=t?(t.rodsPerRow?('ряды × '+t.rodsPerRow+' '+(t.lastAdjustment<0?'− '+Math.abs(t.lastAdjustment):t.lastAdjustment>0?'+ '+t.lastAdjustment:'')+'; длина '+t.rodLength+' м'):'формула не настроена'):'';updatePreview()}
 function updatePreview(){const w=num(document.getElementById('packWeight').value),r=num(document.getElementById('dailyRows').value),t=template(),out=document.getElementById('previewText');if(!w||!t||!t.rodsPerRow||!r){out.textContent='Укажи вес и настрой формулу шаблона';return}const c=calc(w,r,t);out.innerHTML='Хлыстов: <b>'+c.rods+'</b> · Коэффициент: <b>'+(c.coefficient===null?'н/д':c.coefficient.toFixed(t.roundDigits))+'</b>'}
 function render(){const d=day();document.getElementById('dailyRows').value=d.rows;const p=d.packs,def=d.defects;const good=p.filter(x=>x.status==='good').reduce((a,x)=>a+x.weight,0),bad=def.reduce((a,x)=>a+x.weight,0),rw=def.filter(x=>x.status==='rework').reduce((a,x)=>a+x.weight,0),scr=def.filter(x=>x.status==='scrap').reduce((a,x)=>a+x.weight,0);document.getElementById('goodTotal').textContent=kg(good);document.getElementById('defectTotal').textContent=kg(bad);document.getElementById('allTotal').textContent=kg(p.reduce((a,x)=>a+x.weight,0)+bad);document.getElementById('reworkTotal').textContent=kg(rw+p.filter(x=>x.status==='rework').reduce((a,x)=>a+x.weight,0));document.getElementById('scrapTotal').textContent=kg(scr);document.getElementById('packCount').textContent=p.length;document.getElementById('counts').textContent=p.length+' пачек · '+def.length+' брака';document.getElementById('packCountLabel').textContent=p.length;document.getElementById('defectCountLabel').textContent=def.length;
+document.getElementById('quickPackCount').textContent=p.length;
+document.getElementById('quickPackWeight').textContent=kg(p.reduce((a,x)=>a+x.weight,0));
+document.getElementById('quickDefectWeight').textContent=kg(bad);
 document.getElementById('packs').innerHTML=p.length?p.map(x=>'<article class="item"><div class="itemhead"><div><strong>Пачка №'+x.number+' · '+esc(x.templateName)+'</strong><div class="meta">'+kg(x.weight)+' · '+x.rows+' рядов · '+x.rods+' хлыстов · коэффициент '+(x.coefficient===null?'н/д':x.coefficient.toFixed(x.snapshot.roundDigits))+'</div></div><span class="pill '+(x.status==='good'?'good':x.status==='rework'?'warn':'')+'">'+statusName(x.status)+'</span></div><div class="actions no-print"><button class="secondary small" onclick="editPack(\''+x.id+'\')">Изменить</button><button class="danger small" onclick="deletePack(\''+x.id+'\')">Удалить</button></div></article>').join(''):'<div class="empty">Пока нет пачек</div>';
 document.getElementById('defects').innerHTML=def.length?def.map(x=>'<article class="item"><div class="itemhead"><div><strong>Брак №'+x.number+'</strong><div class="meta">'+kg(x.weight)+'</div></div><span class="pill '+(x.status==='scrap'?'bad':'warn')+'">'+statusName(x.status)+'</span></div><div class="actions no-print"><button class="secondary small" onclick="editDefect(\''+x.id+'\')">Изменить</button><button class="danger small" onclick="deleteDefect(\''+x.id+'\')">Удалить</button></div></article>').join(''):'<div class="empty">Пока нет записей брака</div>';updatePreview();save()}
 function editPack(id){const x=day().packs.find(a=>a.id===id);if(!x)return;const w=prompt('Вес пачки, кг',x.weight);if(w===null)return;const r=prompt('Количество рядов',x.rows);if(r===null)return;const s=prompt('Статус: good, rework или cutting',x.status);if(s===null)return;if(!Number(w)||!Number(r)||!['good','rework','cutting'].includes(s)){alert('Проверь вес, ряды и статус');return}x.weight=Number(w);x.rows=Number(r);x.status=s;const c=calc(x.weight,x.rows,x.snapshot);x.rods=c.rods;x.coefficient=c.coefficient;render()}
 function deletePack(id){if(!confirm('Удалить эту пачку?'))return;day().packs=day().packs.filter(x=>x.id!==id);render()}
-function editDefect(id){const x=day().defects.find(a=>a.id===id);if(!x)return;const w=prompt('Вес брака, кг',x.weight);if(w===null)return;const s=prompt('Статус: rework или scrap',x.status);if(s===null)return;if(!Number(w)||!['rework','scrap'].includes(s)){alert('Проверь вес и статус');return}x.weight=Number(w);x.status=s;render()}
+function editDefect(id){const x=day().defects.find(a=>a.id===id);if(!x)return;const w=prompt('Вес брака, кг',x.weight);if(w===null)return;const s=prompt('Статус: rework или scrap',x.status);if(s===null)return;if(!Number(w)||!['cutting','rework','scrap'].includes(s)){alert('Проверь вес и статус');return}x.weight=Number(w);x.status=s;render()}
 function deleteDefect(id){if(!confirm('Удалить запись брака?'))return;day().defects=day().defects.filter(x=>x.id!==id);render()}
 function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function addPack(){const w=num(document.getElementById('packWeight').value),r=num(document.getElementById('dailyRows').value),t=template();if(!w||w<0||!Number.isInteger(r)||r<1){alert('Укажи вес пачки и целое количество рядов');return}if(!t||!t.rodsPerRow){alert('Сначала настрой формулу выбранного шаблона');return}const c=calc(w,r,t),d=day();d.packs.push({id:newId(),number:d.packs.length?Math.max(...d.packs.map(x=>x.number))+1:1,weight:w,rows:r,rods:c.rods,coefficient:c.coefficient,status:document.getElementById('packStatus').value,templateId:t.id,templateName:t.name,snapshot:{...t}});document.getElementById('packWeight').value='';render()}
@@ -128,6 +183,8 @@ function saveTemplate(){const id=document.getElementById('templateId').value,nam
 function exportData(){const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='stancontrol-backup-'+dateKey()+'.json';a.click();URL.revokeObjectURL(url)}
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 document.getElementById('workDate').value=new Date().toISOString().slice(0,10);
+document.getElementById('sessionDate').value=document.getElementById('workDate').value;
+
 document.getElementById('workDate').addEventListener('change',()=>{render();updateFormula()});
 document.getElementById('angleType').addEventListener('change',updateFormula);
 document.getElementById('dailyRows').addEventListener('change',e=>{const v=Number(e.target.value);if(!Number.isInteger(v)||v<1){alert('Количество рядов должно быть целым числом больше нуля');e.target.value=day().rows;return}day().rows=v;render()});
@@ -140,7 +197,17 @@ document.getElementById('saveTemplate').addEventListener('click',saveTemplate);
 document.getElementById('printBtn').addEventListener('click',()=>window.print());
 document.getElementById('exportBtn').addEventListener('click',exportData);
 document.getElementById('clearDay').addEventListener('click',()=>{if(confirm('Удалить все записи этого дня?')){db.days[dateKey()]={rows:num(document.getElementById('dailyRows').value)||15,packs:[],defects:[]};render()}});
-refreshTemplateSelect();render();renderTemplates();
+refreshTemplateSelect();
+document.getElementById('sessionTemplate').innerHTML=db.templates.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');
+document.getElementById('startSession').addEventListener('click',()=>{
+ const dt=document.getElementById('sessionDate').value||new Date().toISOString().slice(0,10);
+ document.getElementById('workDate').value=dt;
+ document.getElementById('angleType').value=document.getElementById('sessionTemplate').value;
+ document.getElementById('sessionStart').classList.add('hidden');
+ document.getElementById('sheet').classList.remove('hidden');
+ updateFormula();render();
+});
+render();renderTemplates();
 </script>
 </body>
 </html>
