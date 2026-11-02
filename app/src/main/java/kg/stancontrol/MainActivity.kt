@@ -1,6 +1,11 @@
 package kg.stancontrol
 
 import android.os.Bundle
+import android.content.Intent
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -20,7 +25,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.round
 
-data class Pack(val weight: Double, val rows: Int, val pieces: Int, val coefficient: Double)
+data class Pack(val weight: Double, val rows: Int, val pieces: Int, val coefficient: Double, val width: Int = 5, val length: Double = 6.0)
 data class Defect(val type: String, val weight: Double)
 data class Pallet(val type: String, val gross: Double, val tare: Double) { val net: Double get() = gross - tare }
 
@@ -38,9 +43,9 @@ class MainActivity : ComponentActivity() {
         var screen by remember { mutableStateOf("home") }
         var mode by remember { mutableStateOf("Пачка") }
         var profile by remember { mutableStateOf(prefs.getString("profile", "Уголок 50") ?: "Уголок 50") }
-        var width by remember { mutableStateOf(prefs.getInt("width", 5).toString()) }
-        var length by remember { mutableStateOf(prefs.getString("length", "6") ?: "6") }
-        var rows by remember { mutableStateOf(prefs.getInt("rows", 15).toString()) }
+        var width by remember { mutableStateOf(prefs.getString("profile_50_width", "5") ?: "5") }
+        var length by remember { mutableStateOf(prefs.getString("profile_50_length", "6") ?: "6") }
+        var rows by remember { mutableStateOf(prefs.getString("profile_50_rows", "15") ?: "15") }
         var date by remember { mutableStateOf(prefs.getString("date", today()) ?: today()) }
         var inputWeight by remember { mutableStateOf("") }
         var gross by remember { mutableStateOf("") }
@@ -67,6 +72,7 @@ class MainActivity : ComponentActivity() {
         val packTotal = packs.sumOf { it.weight }
         val defectTotal = defects.sumOf { it.weight }
         val lastPack = packs.lastOrNull()
+        val rejectPercent = if (packTotal + defectTotal > 0) defectTotal * 100.0 / (packTotal + defectTotal) else 0.0
 
         fun saveAll() {
             val p = JSONArray()
@@ -77,7 +83,7 @@ class MainActivity : ComponentActivity() {
             pallets.forEach { a.put(JSONObject().put("t", it.type).put("g", it.gross).put("a", it.tare)) }
             prefs.edit().putString("packs", p.toString()).putString("defects", d.toString()).putString("pallets", a.toString())
                 .putBoolean("active", active).putString("profile", profile).putInt("width", width.toIntOrNull() ?: 5)
-                .putString("length", length).putInt("rows", rows.toIntOrNull() ?: 15).putString("date", date).apply()
+                .putString("profile_${profile.substringAfterLast(" ")}_length", length).putString("profile_${profile.substringAfterLast(" ")}_rows", rows).putString("profile_${profile.substringAfterLast(" ")}_width", width).putString("date", date).apply()
         }
 
         fun addPack() {
@@ -88,7 +94,7 @@ class MainActivity : ComponentActivity() {
             if (w <= 0 || r <= 0 || widthValue <= 0 || lengthValue <= 0) return
             val count = (widthValue * 2 - 1) * r - (widthValue - 1)
             val coefficient = round(w / (count * lengthValue) * 10.0) / 10.0
-            packs.add(Pack(w, r, count, coefficient))
+            packs.add(Pack(w, r, count, coefficient, widthValue, lengthValue))
             inputWeight = ""
             saveAll()
         }
@@ -127,7 +133,9 @@ class MainActivity : ComponentActivity() {
                         listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { item ->
                             FilterChip(selected = profile == item, onClick = {
                                 profile = item
-                                width = when (item) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; else -> "6" }
+                                width = prefs.getString("profile_${item.substringAfterLast(" ")}_width", when (item) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; else -> "6" }) ?: "5"
+                                rows = prefs.getString("profile_${item.substringAfterLast(" ")}_rows", if (item == "Уголок 40") "20" else "15") ?: "15"
+                                length = prefs.getString("profile_${item.substringAfterLast(" ")}_length", "6") ?: "6"
                             }, label = { Text(item) })
                         }
                         OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.fillMaxWidth()) { Text("Настроить профиль") }
@@ -136,6 +144,7 @@ class MainActivity : ComponentActivity() {
                         Text("Смена " + date, style = MaterialTheme.typography.titleLarge)
                         Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Продолжить смену") }
                         OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
+                    OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                         OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
                         OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
                     }
@@ -149,7 +158,7 @@ class MainActivity : ComponentActivity() {
                     when (mode) {
                         "Пачка" -> {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Высота, рядов")
+                                Text("Количество рядов")
                                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                     OutlinedButton(onClick = { rows = ((rows.toIntOrNull() ?: 1) - 1).coerceAtLeast(1).toString() }) { Text("-") }
                                     Text(rows, modifier = Modifier.padding(top = 12.dp), fontWeight = FontWeight.Bold)
@@ -161,7 +170,7 @@ class MainActivity : ComponentActivity() {
                         }
                         "Брак" -> {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("Резка", "Прокат").forEach { item -> FilterChip(defectType == item, { defectType = item }, label = { Text(item) }) }
+                                listOf("Резка", "Металлолом").forEach { item -> FilterChip(defectType == item, { defectType = item }, label = { Text(item) }) }
                             }
                             OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес брака, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Button(onClick = { addDefect() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить брак") }
@@ -176,6 +185,14 @@ class MainActivity : ComponentActivity() {
                             Button(onClick = { addPallet() }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
                         }
                     }
+                    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Текущие показатели", fontWeight = FontWeight.Bold)
+                        Text("Общий вес чистых пачек: " + fmt(packTotal) + " кг")
+                        Text("Общий вес брака: " + fmt(defectTotal) + " кг")
+                        Text("Количество чистых пачек: " + packs.size)
+                        Text("Количество пачек брака: " + defects.size)
+                        Text("Брак от общего веса: " + fmt(rejectPercent) + " %")
+                    } }
                     if (lastPack != null) Text("Последняя пачка: " + fmt(lastPack.weight) + " кг | коэффициент " + fmt(lastPack.coefficient), fontWeight = FontWeight.SemiBold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Пачки: " + fmt(packTotal) + " кг", fontWeight = FontWeight.Bold)
@@ -243,11 +260,11 @@ class MainActivity : ComponentActivity() {
         }, confirmButton = { TextButton(onClick = {
             val w = editWeight.replace(',', '.').toDoubleOrNull()
             val r = editRows.toIntOrNull()
-            val widthValue = width.toIntOrNull() ?: 5
-            val lengthValue = length.replace(',', '.').toDoubleOrNull() ?: 6.0
+            val widthValue = packs[editPack].width
+            val lengthValue = packs[editPack].length
             if (w != null && r != null && w > 0 && r > 0) {
                 val count = (widthValue * 2 - 1) * r - (widthValue - 1)
-                packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue) * 10.0) / 10.0)
+                packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue) * 10.0) / 10.0, widthValue, lengthValue)
                 saveAll()
             }
             editPack = -1
@@ -287,6 +304,34 @@ class MainActivity : ComponentActivity() {
                 confirmFinish = false
             }) { Text("Завершить") } },
             dismissButton = { TextButton(onClick = { confirmFinish = false }) { Text("Отмена") } })
+    }
+
+    private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+        val pdf = PdfDocument()
+        val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
+        val paint = Paint().apply { textSize = 12f }
+        var y = 42f
+        fun line(s: String) { page.canvas.drawText(s, 36f, y, paint); y += 22f }
+        line("StanControl | $date | $profile")
+        line("ПАЧКИ: коэффициент | вес кг | штук")
+        packs.forEachIndexed { i, p -> line("${i + 1}. ${fmt(p.coefficient)} | ${fmt(p.weight)} | ${p.pieces}") }
+        line("Итого пачки: ${fmt(packs.sumOf { it.weight })} кг")
+        line("БРАК")
+        line("Резка: ${fmt(defects.filter { it.type == "Резка" }.sumOf { it.weight })} кг")
+        line("Металлолом: ${fmt(defects.filter { it.type == "Металлолом" }.sumOf { it.weight })} кг")
+        line("Всего брак: ${fmt(defects.sumOf { it.weight })} кг")
+        line("ПОДДОНЫ ПРОКАТ")
+        pallets.filter { it.type == "Прокат" }.forEachIndexed { i, p -> line("${i + 1}. ${fmt(p.gross)} / ${fmt(p.tare)} / ${fmt(p.net)}") }
+        line("ПОДДОНЫ РЕЗКА")
+        pallets.filter { it.type == "Резка" }.forEachIndexed { i, p -> line("${i + 1}. ${fmt(p.gross)} / ${fmt(p.tare)} / ${fmt(p.net)}") }
+        pdf.finishPage(page)
+        val dir = File(cacheDir, "reports").apply { mkdirs() }
+        val file = File(dir, "StanControl-$date.pdf")
+        file.outputStream().use { pdf.writeTo(it) }; pdf.close()
+        val uri = FileProvider.getUriForFile(this, "kg.stancontrol.fileprovider", file)
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }, "Поделиться PDF"))
     }
 
     private fun today(): String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
