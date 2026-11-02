@@ -9,6 +9,8 @@ import androidx.core.content.FileProvider
 import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -41,6 +43,40 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MainScreen() {
+        val restoreBackupLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocument()
+        ) { uri ->
+            if (uri != null) {
+                try {
+                    val raw = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                        ?: throw IllegalStateException("Не удалось прочитать файл")
+                    val root = JSONObject(raw)
+                    if (root.optString("app") != "StanControl" || root.optInt("backupVersion") != 1) {
+                        throw IllegalArgumentException("Это не резервная копия StanControl или версия не поддерживается")
+                    }
+                    val data = root.optJSONObject("data") ?: throw IllegalArgumentException("В файле нет данных")
+                    writeAutomaticBackup()
+                    val editor = prefs.edit().clear()
+                    val keys = data.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        when (val value = data.get(key)) {
+                            is String -> editor.putString(key, value)
+                            is Boolean -> editor.putBoolean(key, value)
+                            is Int -> editor.putInt(key, value)
+                            is Long -> editor.putLong(key, value)
+                            is Double -> editor.putFloat(key, value.toFloat())
+                            is Float -> editor.putFloat(key, value)
+                        }
+                    }
+                    editor.commit()
+                    android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Приложение перезапустится.", android.widget.Toast.LENGTH_LONG).show()
+                    recreate()
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(this@MainActivity, "Ошибка восстановления: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
         var active by remember { mutableStateOf(prefs.getBoolean("active", false)) }
         var screen by remember { mutableStateOf("home") }
         var mode by remember { mutableStateOf("Пачка") }
@@ -171,6 +207,7 @@ class MainActivity : ComponentActivity() {
                     OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                         OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
                         OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
+                        OutlinedButton(onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "text/json", "application/octet-stream")) }, modifier = Modifier.fillMaxWidth()) { Text("Восстановить из файла бекапа") }
                         OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
                     }
                 }
