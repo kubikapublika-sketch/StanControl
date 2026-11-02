@@ -81,6 +81,20 @@ class MainActivity : ComponentActivity() {
         var screen by remember { mutableStateOf("home") }
         var mode by remember { mutableStateOf("Пачка") }
         var profile by remember { mutableStateOf(prefs.getString("profile", "Уголок 50") ?: "Уголок 50") }
+        val profileNames = remember {
+            mutableStateListOf<String>().apply {
+                val saved = try { JSONArray(prefs.getString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
+                for (i in 0 until saved.length()) add(saved.optString(i))
+                listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { if (!contains(it)) add(it) }
+                if (isEmpty()) add("Уголок 50")
+            }
+        }
+        var showProfileManager by remember { mutableStateOf(false) }
+        var newProfileName by remember { mutableStateOf("") }
+        var newProfileWidth by remember { mutableStateOf("5") }
+        var newProfileRows by remember { mutableStateOf("15") }
+        var newProfileLength by remember { mutableStateOf("6") }
+        var confirmDeleteProfile by remember { mutableStateOf(false) }
         val initialProfileKey = (prefs.getString("profile", "Уголок 50") ?: "Уголок 50").substringAfterLast(" ")
         val initialWidth = when (initialProfileKey) { "40" -> "7"; "30" -> "6"; else -> "5" }
         val initialRows = if (initialProfileKey == "40") "20" else "15"
@@ -194,14 +208,18 @@ class MainActivity : ComponentActivity() {
                         Text("Начать день", style = MaterialTheme.typography.titleLarge)
                         OutlinedTextField(date, { date = it }, label = { Text("Дата") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                         Text("Профиль")
-                        listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { item ->
+                        profileNames.forEach { item ->
                             FilterChip(selected = profile == item, onClick = {
                                 profile = item
-                                width = prefs.getString("profile_${item.substringAfterLast(" ")}_width", when (item) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; else -> "6" }) ?: "5"
-                                rows = prefs.getString("profile_${item.substringAfterLast(" ")}_rows", if (item == "Уголок 40") "20" else "15") ?: "15"
-                                length = prefs.getString("profile_${item.substringAfterLast(" ")}_length", "6") ?: "6"
+                                val key = item.substringAfterLast(" ")
+                                val defaultWidth = when (item) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
+                                val defaultRows = if (item == "Уголок 40") "20" else "15"
+                                width = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
+                                rows = prefs.getString("profile_${key}_rows", defaultRows) ?: defaultRows
+                                length = prefs.getString("profile_${key}_length", "6") ?: "6"
                             }, label = { Text(item) })
                         }
+                        OutlinedButton(onClick = { showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить / удалить профиль") }
                         OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.fillMaxWidth()) { Text("Настроить профиль") }
                         Button(onClick = { active = true; screen = "work"; saveAll() }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
                     } else {
@@ -394,11 +412,14 @@ class MainActivity : ComponentActivity() {
                     }, modifier = Modifier.fillMaxWidth()) { Text("Дата: $historicalDate · выбрать") }
                     Text("Профиль")
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { p ->
+                        profileNames.forEach { p ->
                             FilterChip(selected = historicalProfile == p, onClick = {
                                 historicalProfile = p
-                                historicalWidth = when (p) { "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
-                                historicalRows = if (p == "Уголок 40") "20" else "15"
+                                val key = p.substringAfterLast(" ")
+                                val defaultWidth = when (p) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
+                                historicalWidth = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
+                                historicalRows = prefs.getString("profile_${key}_rows", if (p == "Уголок 40") "20" else "15") ?: "15"
+                                historicalLength = prefs.getString("profile_${key}_length", "6") ?: "6"
                             }, label = { Text(p) })
                         }
                     }
@@ -534,6 +555,73 @@ class MainActivity : ComponentActivity() {
             if ((archiveShiftJson?.let { JSONObject(it).optString("date") } ?: "") == deleteArchiveDate) { archiveShiftJson = null; screen = "archive" }
             deleteArchiveDate = ""
         }) { Text("Удалить") } }, dismissButton = { TextButton(onClick = { deleteArchiveDate = "" }) { Text("Отмена") } })
+        if (showProfileManager) AlertDialog(
+            onDismissRequest = { showProfileManager = false },
+            title = { Text("Управление профилями") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Текущий профиль: $profile")
+                    OutlinedTextField(newProfileName, { newProfileName = it }, label = { Text("Название, например Уголок 63") }, singleLine = true)
+                    OutlinedTextField(newProfileWidth, { newProfileWidth = it }, label = { Text("Ширина пачки, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                    OutlinedTextField(newProfileRows, { newProfileRows = it }, label = { Text("Рядов по умолчанию") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                    OutlinedTextField(newProfileLength, { newProfileLength = it }, label = { Text("Длина изделия, м") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                    Text("Существующие профили: " + profileNames.joinToString(", "), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = newProfileName.trim()
+                    val w = newProfileWidth.toIntOrNull()
+                    val r = newProfileRows.toIntOrNull()
+                    val l = newProfileLength.replace(',', '.').toDoubleOrNull()
+                    if (name.isNotBlank() && !profileNames.contains(name) && w != null && w > 0 && r != null && r > 0 && l != null && l > 0) {
+                        profileNames.add(name)
+                        val key = name.substringAfterLast(" ")
+                        prefs.edit().putString("profile_list", JSONArray(profileNames).toString())
+                            .putString("profile_${key}_width", w.toString())
+                            .putString("profile_${key}_rows", r.toString())
+                            .putString("profile_${key}_length", l.toString()).apply()
+                        profile = name
+                        width = w.toString()
+                        rows = r.toString()
+                        length = l.toString()
+                        newProfileName = ""
+                        showProfileManager = false
+                        writeAutomaticBackup()
+                    } else {
+                        android.widget.Toast.makeText(this@MainActivity, "Проверь название и параметры. Название должно быть уникальным.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }) { Text("Добавить профиль") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { if (profileNames.size > 1) confirmDeleteProfile = true else android.widget.Toast.makeText(this@MainActivity, "Нельзя удалить последний профиль", android.widget.Toast.LENGTH_SHORT).show() }) { Text("Удалить текущий") }
+                    TextButton(onClick = { showProfileManager = false }) { Text("Закрыть") }
+                }
+            }
+        )
+        if (confirmDeleteProfile) AlertDialog(
+            onDismissRequest = { confirmDeleteProfile = false },
+            title = { Text("Удалить профиль $profile?") },
+            text = { Text("Профиль исчезнет из списка. Уже сохранённые смены и пачки в архиве останутся без изменений.") },
+            confirmButton = { TextButton(onClick = {
+                if (profileNames.size > 1) {
+                    profileNames.remove(profile)
+                    prefs.edit().putString("profile_list", JSONArray(profileNames).toString()).apply()
+                    profile = profileNames.first()
+                    val key = profile.substringAfterLast(" ")
+                    val defaultWidth = when (profile) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
+                    width = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
+                    rows = prefs.getString("profile_${key}_rows", if (profile == "Уголок 40") "20" else "15") ?: "15"
+                    length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                    writeAutomaticBackup()
+                }
+                confirmDeleteProfile = false
+                showProfileManager = false
+            }) { Text("Удалить") } },
+            dismissButton = { TextButton(onClick = { confirmDeleteProfile = false }) { Text("Отмена") } }
+        )
+
         if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Настройки профиля") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(width, { width = it }, label = { Text("Ширина пачки, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
