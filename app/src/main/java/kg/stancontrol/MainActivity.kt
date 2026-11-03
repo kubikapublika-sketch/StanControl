@@ -990,22 +990,34 @@ class MainActivity : ComponentActivity() {
             paint.style = Paint.Style.FILL
             paint.textSize = size
             paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-            val tx = if (center) x + (w - paint.measureText(value)) / 2f else x + 2f
-            canvas.drawText(value, tx, y + h / 2f + size / 3f, paint)
+            val lines = value.split("\n")
+            val lineHeight = size + 1f
+            val firstBaseline = y + h / 2f + (lines.size - 1) * lineHeight / 2f + size / 3f
+            lines.forEachIndexed { index, line ->
+                val tx = if (center) x + (w - paint.measureText(line)) / 2f else x + 2f
+                canvas.drawText(line, tx, firstBaseline - index * lineHeight, paint)
+            }
         }
-        var y = 24f
-        val widths = listOf(24f, 60f, 36f, 44f, 48f, 48f, 48f, 48f, 48f, 80f, 75f)
-        val headers = listOf("№", "Дата", "Вид", "Коэф.", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак: вид", "Вес, кг")
-        var x = left
-        headers.forEachIndexed { i, h -> cell(x, y, widths[i], 23f, h, true, 6.4f, true); x += widths[i] }
-        y += 23f
+        var y = 18f
+        drawText("Дата: $date", left + 4f, y + 8f, 8f, true)
+        drawText("Вид профиля: $profile", left + 190f, y + 8f, 8f, true)
+        y += 17f
+
+        // Date is printed once above the grid. Keep 6 m unchanged and
+        // slightly narrow 5-2 m plus the defect column as requested.
+        val widths = listOf(24f, 36f, 44f, 48f, 44f, 44f, 44f, 44f, 60f, 75f)
+        val headers = listOf("№", "Вид", "Коэф.", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак\nВиды", "Вес, кг")
+        val gridWidth = widths.sum()
+        val gridLeft = (595f - gridWidth) / 2f
+        var x = gridLeft
+        headers.forEachIndexed { i, h -> cell(x, y, widths[i], 25f, h, true, 6.4f, true); x += widths[i] }
+        y += 25f
         val lengths = listOf(6, 5, 4, 3, 2)
         for (i in 0 until 45) {
             val p = packs.getOrNull(i)
             val d = defects.getOrNull(i)
             val row = mutableListOf(
                 (i + 1).toString(),
-                if (i == 0) date else "",
                 profile.filter { it.isDigit() },
                 p?.let { fmt(it.coefficient) } ?: "",
                 "", "", "", "", "",
@@ -1014,22 +1026,25 @@ class MainActivity : ComponentActivity() {
             )
             if (p != null) {
                 val idx = lengths.indexOf(kotlin.math.round(p.length).toInt())
-                if (idx >= 0) row[4 + idx] = p.pieces.toString()
+                if (idx >= 0) row[3 + idx] = p.pieces.toString()
             }
-            x = left
-            row.forEachIndexed { j, value -> cell(x, y, widths[j], 11.2f, value, false, 6.2f, j != 1 && j != 9); x += widths[j] }
+            x = gridLeft
+            row.forEachIndexed { j, value -> cell(x, y, widths[j], 11.2f, value, false, 6.2f, true); x += widths[j] }
             y += 11.2f
         }
-        y += 5f
+
         val clean = packs.sumOf { it.weight }
         val bad = defects.sumOf { it.weight }
         val total = clean + bad
-        val summaryH = 19f
-        val summaryWidths = listOf(186f, 186f, tableWidth - 372f)
-        val summary = listOf("Чистый вес: ${fmt(clean)} кг", "Вес брака: ${fmt(bad)} кг", "ОБЩИЙ ВЕС: ${fmt(total)} кг")
-        x = left
-        summary.forEachIndexed { i, v -> cell(x, y, summaryWidths[i], summaryH, v, true, if (i == 2) 9f else 8f); x += summaryWidths[i] }
-        y += summaryH + 8f
+        y += 5f
+        cell(gridLeft, y, gridWidth, 22f,
+            "ВСЕГО ПАЧЕК: ${packs.size}     ОБЩИЙ ВЕС ПАЧЕК: ${fmt(clean)} кг",
+            true, 8.2f, true)
+        y += 22f
+        cell(gridLeft, y, gridWidth, 22f,
+            "ВСЕГО БРАКА: ${defects.size}     ОБЩИЙ ВЕС БРАКА: ${fmt(bad)} кг",
+            true, 8.2f, true)
+        y += 22f + 8f
         val palletColGap = 8f
         val palletColWidth = (tableWidth - palletColGap) / 2f
         val palletRowH = 13f
@@ -1054,7 +1069,10 @@ class MainActivity : ComponentActivity() {
         palletSection("ПРОКАТ", "Прокат", left)
         palletSection("ПОДДОНЫ РЕЗКА", "Резка", left + palletColWidth + palletColGap)
         y += 17f + palletRowH * 7f
-        drawText("Примечание: ____________________________________________", left + 4f, y + 13f, 6.5f)
+        y += 7f
+        cell(left, y, tableWidth, 34f, "ОБЩИЙ ВЕС ПРОДУКЦИИ И БРАКА: ${fmt(total)} кг", true, 12f, true)
+        y += 39f
+        drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
         val file = File(dir, "StanControl-$date-grid.pdf")
