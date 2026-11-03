@@ -1038,11 +1038,11 @@ class MainActivity : ComponentActivity() {
         val total = clean + bad
         y += 5f
         cell(gridLeft, y, gridWidth, 22f,
-            "ВСЕГО ПАЧЕК: ${packs.size}     ОБЩИЙ ВЕС ПАЧЕК: ${fmt(clean)} кг",
+            "Пачки: ${fmt(clean)} кг",
             true, 8.2f, true)
         y += 22f
         cell(gridLeft, y, gridWidth, 22f,
-            "ВСЕГО БРАКА: ${defects.size}     ОБЩИЙ ВЕС БРАКА: ${fmt(bad)} кг",
+            "Брак: ${fmt(bad)} кг",
             true, 8.2f, true)
         y += 22f + 8f
         val palletColGap = 8f
@@ -1070,7 +1070,7 @@ class MainActivity : ComponentActivity() {
         palletSection("ПОДДОНЫ РЕЗКА", "Резка", left + palletColWidth + palletColGap)
         y += 17f + palletRowH * 7f
         y += 7f
-        cell(left, y, tableWidth, 34f, "ОБЩИЙ ВЕС ПРОДУКЦИИ И БРАКА: ${fmt(total)} кг", true, 12f, true)
+        cell(left, y, tableWidth, 34f, "ВСЕГО: ${fmt(total)} кг", true, 12f, true)
         y += 39f
         drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
         pdf.finishPage(page)
