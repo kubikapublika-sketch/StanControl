@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
         var width by remember { mutableStateOf(prefs.getString("profile_${initialProfileKey}_width", initialWidth) ?: initialWidth) }
         var length by remember { mutableStateOf(prefs.getString("profile_${initialProfileKey}_length", "6") ?: "6") }
         var rows by remember { mutableStateOf(prefs.getString("profile_${initialProfileKey}_rows", initialRows) ?: initialRows) }
-        var date by remember { mutableStateOf(prefs.getString("date", today()) ?: today()) }
+        var date by remember { mutableStateOf(if (prefs.getBoolean("active", false)) (prefs.getString("date", today()) ?: today()) else today()) }
         var inputWeight by remember { mutableStateOf("") }
         var gross by remember { mutableStateOf("") }
         var tare by remember { mutableStateOf("") }
@@ -213,7 +213,10 @@ class MainActivity : ComponentActivity() {
                 "home" -> {
                     if (!active) {
                         Text("Новая смена", style = MaterialTheme.typography.titleLarge)
-                        OutlinedTextField(date, { date = it }, label = { Text("Дата смены") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Text("Дата смены: $date", style = MaterialTheme.typography.bodyLarge)
+                        if (archiveHasDate(date)) {
+                            Text("Смена за сегодня уже есть в архиве. Новую смену открыть нельзя.", color = MaterialTheme.colorScheme.error)
+                        }
                         Text("Рабочий профиль")
                         profileNames.forEach { item ->
                             FilterChip(selected = profile == item, onClick = {
@@ -226,15 +229,11 @@ class MainActivity : ComponentActivity() {
                                 length = prefs.getString("profile_${key}_length", "6") ?: "6"
                             }, label = { Text(item) })
                         }
-                        Button(onClick = {
-                            if (archiveHasDate(date)) {
-                                android.widget.Toast.makeText(this@MainActivity, "Смена за эту дату уже есть в архиве. Выберите другую дату.", android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                active = true
-                                screen = "work"
-                                saveAll()
-                            }
-                        }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
+                        Button(
+                            onClick = { active = true; screen = "work"; saveAll() },
+                            enabled = !archiveHasDate(date),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Начать смену") }
                     } else {
                         Text("Смена " + date, style = MaterialTheme.typography.titleLarge)
                         Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Продолжить смену") }
