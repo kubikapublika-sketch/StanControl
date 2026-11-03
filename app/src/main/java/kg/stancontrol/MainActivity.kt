@@ -1,6 +1,8 @@
 package kg.stancontrol
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.app.DatePickerDialog
 import android.content.Intent
 import android.graphics.Paint
@@ -18,9 +20,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -35,10 +41,36 @@ data class Pallet(val type: String, val gross: Double, val tare: Double) { val n
 
 class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("stancontrol", MODE_PRIVATE) }
+    private val dayChangeHandler = Handler(Looper.getMainLooper())
+    private val dayChangeCheck = object : Runnable {
+        override fun run() {
+            if (archiveStaleActiveShift()) {
+                recreate()
+                return
+            }
+            dayChangeHandler.postDelayed(this, 60_000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        archiveStaleActiveShift()
         setContent { MaterialTheme { MainScreen() } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        dayChangeHandler.removeCallbacks(dayChangeCheck)
+        if (archiveStaleActiveShift()) {
+            recreate()
+            return
+        }
+        dayChangeHandler.postDelayed(dayChangeCheck, 60_000L)
+    }
+
+    override fun onPause() {
+        dayChangeHandler.removeCallbacks(dayChangeCheck)
+        super.onPause()
     }
 
     @Composable
@@ -55,6 +87,31 @@ class MainActivity : ComponentActivity() {
                         throw IllegalArgumentException("Это не резервная копия StanControl или версия не поддерживается")
                     }
                     val data = root.optJSONObject("data") ?: throw IllegalArgumentException("В файле нет данных")
+
+                    // Finish a stale local shift before merging the backup.
+                    archiveStaleActiveShift()
+                    val todayDate = today()
+                    val keepTodayShift = prefs.getBoolean("active", false) &&
+                        (prefs.getString("date", "") ?: "") == todayDate
+                    val todayProfile = prefs.getString("profile", "Уголок 50") ?: "Уголок 50"
+                    val todayPacks = prefs.getString("packs", "[]") ?: "[]"
+                    val todayDefects = prefs.getString("defects", "[]") ?: "[]"
+                    val todayPallets = prefs.getString("pallets", "[]") ?: "[]"
+
+                    val currentArchive = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+                    val currentProfileNames = try { JSONArray(prefs.getString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
+                    val currentProfileSettings = mutableMapOf<String, Triple<String?, String?, String?>>()
+                    for (i in 0 until currentProfileNames.length()) {
+                        val name = currentProfileNames.optString(i)
+                        val key = name.substringAfterLast(" ")
+                        currentProfileSettings[name] = Triple(
+                            prefs.getString("profile_${key}_width", null),
+                            prefs.getString("profile_${key}_rows", null),
+                            prefs.getString("profile_${key}_length", null)
+                        )
+                    }
+                    val currentSelectedProfile = prefs.getString("profile", "") ?: ""
+
                     writeAutomaticBackup()
                     val editor = prefs.edit().clear()
                     val keys = data.keys()
@@ -69,8 +126,105 @@ class MainActivity : ComponentActivity() {
                             is Float -> editor.putFloat(key, value)
                         }
                     }
+
+                    // Merge archive entries by date. Local entries win on conflicts.
+                    val restoredArchive = try { JSONArray(data.optString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+                    val mergedArchive = JSONArray()
+                    val seenDates = mutableSetOf<String>()
+                    fun appendArchive(source: JSONArray, skipToday: Boolean = false) {
+                        for (i in 0 until source.length()) {
+                            val item = source.optJSONObject(i) ?: continue
+                            val itemDate = item.optString("date", "")
+                            if (itemDate.isNotBlank() && !(skipToday && itemDate == todayDate) && seenDates.add(itemDate)) {
+                                mergedArchive.put(item)
+                            }
+                        }
+                    }
+                    appendArchive(currentArchive)
+                    appendArchive(restoredArchive, skipToday = keepTodayShift)
+
+                    // An active shift from an older backup is an archived day, never today's active shift.
+                    val backupActive = data.optBoolean("active", false)
+                    val backupDate = data.optString("date", "")
+                    val backupActiveToday = backupActive && backupDate == todayDate
+                    if (backupActive && backupDate.isNotBlank() && backupDate != todayDate && !seenDates.contains(backupDate)) {
+                        val oldPacks = try { JSONArray(data.optString("packs", "[]")) } catch (_: Exception) { JSONArray() }
+                        val oldDefects = try { JSONArray(data.optString("defects", "[]")) } catch (_: Exception) { JSONArray() }
+                        val oldPallets = try { JSONArray(data.optString("pallets", "[]")) } catch (_: Exception) { JSONArray() }
+                        val oldPackWeight = (0 until oldPacks.length()).sumOf { oldPacks.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
+                        val oldDefectWeight = (0 until oldDefects.length()).sumOf { oldDefects.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
+                        val idle = oldPacks.length() == 0 && oldDefects.length() == 0 && oldPallets.length() == 0
+                        mergedArchive.put(JSONObject()
+                            .put("date", backupDate)
+                            .put("profile", data.optString("profile", "Уголок 50"))
+                            .put("packTotal", oldPackWeight)
+                            .put("defectTotal", oldDefectWeight)
+                            .put("packs", oldPacks)
+                            .put("defects", oldDefects)
+                            .put("pallets", oldPallets)
+                            .put("status", if (idle) "Простой" else "Завершена")
+                            .put("autoClosed", true)
+                            .put("closedAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())))
+                        seenDates.add(backupDate)
+                    }
+                    editor.putString("shifts_archive", mergedArchive.toString())
+                        .putString("archive", "Сохранено смен: " + mergedArchive.length())
+
+                    // Merge profiles instead of replacing local configuration with an older backup.
+                    val restoredProfileNames = try { JSONArray(data.optString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
+                    val mergedProfileNames = JSONArray()
+                    val seenProfileNames = mutableSetOf<String>()
+                    for (source in listOf(currentProfileNames, restoredProfileNames)) {
+                        for (i in 0 until source.length()) {
+                            val name = source.optString(i).trim()
+                            if (name.isNotBlank() && seenProfileNames.add(name)) mergedProfileNames.put(name)
+                        }
+                    }
+                    editor.putString("profile_list", mergedProfileNames.toString())
+                    currentProfileSettings.forEach { (name, values) ->
+                        val key = name.substringAfterLast(" ")
+                        values.first?.let { editor.putString("profile_${key}_width", it) }
+                        values.second?.let { editor.putString("profile_${key}_rows", it) }
+                        values.third?.let { editor.putString("profile_${key}_length", it) }
+                    }
+                    if (currentSelectedProfile.isNotBlank() && seenProfileNames.contains(currentSelectedProfile)) {
+                        editor.putString("profile", currentSelectedProfile)
+                    }
+
+                    // A backup may resume today's shift only when there is no local
+                    // today's shift and no already-archived record for the same date.
+                    val todayAlreadyArchived = (0 until mergedArchive.length()).any {
+                        mergedArchive.optJSONObject(it)?.optString("date") == todayDate
+                    }
+                    when {
+                        keepTodayShift -> {
+                            val key = todayProfile.substringAfterLast(" ")
+                            editor.putBoolean("active", true)
+                                .putString("date", todayDate)
+                                .putString("profile", todayProfile)
+                                .putString("packs", todayPacks)
+                                .putString("defects", todayDefects)
+                                .putString("pallets", todayPallets)
+                            prefs.getString("profile_${key}_width", null)?.let { editor.putString("profile_${key}_width", it) }
+                            prefs.getString("profile_${key}_rows", null)?.let { editor.putString("profile_${key}_rows", it) }
+                            prefs.getString("profile_${key}_length", null)?.let { editor.putString("profile_${key}_length", it) }
+                            editor.putInt("width", prefs.getInt("width", 5))
+                        }
+                        backupActiveToday && !todayAlreadyArchived -> {
+                            editor.putBoolean("active", true).putString("date", todayDate)
+                        }
+                        else -> {
+                            editor.putBoolean("active", false)
+                                .putString("date", todayDate)
+                                .putString("packs", "[]")
+                                .putString("defects", "[]")
+                                .putString("pallets", "[]")
+                        }
+                    }
+
                     editor.commit()
-                    android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Приложение перезапустится.", android.widget.Toast.LENGTH_LONG).show()
+                    writeAutomaticBackup()
+                    android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Сегодняшняя смена сохранена, старые дни отправлены в архив.", android.widget.Toast.LENGTH_LONG).show()
                     recreate()
                 } catch (e: Exception) {
                     android.widget.Toast.makeText(this@MainActivity, "Ошибка восстановления: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
@@ -261,7 +415,6 @@ class MainActivity : ComponentActivity() {
                         FilterChip(selected = pdfTemplate == "classic", onClick = { pdfTemplate = "classic"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Норм PDF") })
                         FilterChip(selected = pdfTemplate == "grid", onClick = { pdfTemplate = "grid"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Чмошная хуйня") })
                     }
-                    Text(if (pdfTemplate == "grid") "Выбран новый табличный бланк с длинами 6–2 м и поддонами." else "Выбран текущий бланк без крупного заголовка сверху.", style = MaterialTheme.typography.bodySmall)
                     Divider()
                     Text("Резервная копия", fontWeight = FontWeight.SemiBold)
                     OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
@@ -271,7 +424,12 @@ class MainActivity : ComponentActivity() {
                 "work" -> {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Пачка", "Брак", "Поддоны").forEach { item ->
-                            FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) })
+                            FilterChip(
+                                selected = mode == item,
+                                onClick = { mode = item },
+                                modifier = Modifier.weight(1f),
+                                label = { Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false) }
+                            )
                         }
                     }
                     Card(Modifier.fillMaxWidth()) {
@@ -286,19 +444,51 @@ class MainActivity : ComponentActivity() {
                     }
                     Card(Modifier.fillMaxWidth()) {
                         val lp = lastPack
-                        Text(
-                            if (lp == null) "Последняя пачка: пока нет записей"
-                            else "Последняя: ${fmt(lp.weight)} кг  ·  К ${fmt(lp.coefficient)}  ·  Р ${lp.rows}",
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(
+                                "ПОСЛЕДНЯЯ ПАЧКА",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (lp == null) {
+                                Text("Пока нет записей", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            } else {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "${fmt(lp.weight)} кг",
+                                        modifier = Modifier.weight(1.2f),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Text(
+                                        "К ${fmt(lp.coefficient)}",
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Text(
+                                        "Р ${lp.rows}",
+                                        modifier = Modifier.weight(0.75f),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
                     }
                     when (mode) {
                         "Пачка" -> {
-                            Text("Пачка проката", fontWeight = FontWeight.SemiBold)
                             OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес пачки, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Количество рядов")
@@ -340,20 +530,38 @@ class MainActivity : ComponentActivity() {
                         item {
                             OutlinedButton(onClick = { showPacks = !showPacks }, modifier = Modifier.fillMaxWidth()) { Text("Пачки (" + packs.size + ")") }
                             if (showPacks) packs.forEachIndexed { index, p ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text((index + 1).toString() + ". " + fmt(p.weight) + " кг | " + fmt(p.coefficient) + " | " + p.pieces + " шт", modifier = Modifier.weight(1f))
-                                    TextButton(onClick = { editPack = index; editWeight = p.weight.toString(); editRows = p.rows.toString() }) { Text("Изменить") }
-                                    TextButton(onClick = { deletePackIndex = index }) { Text("Удалить") }
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        (index + 1).toString() + ") " + fmt(p.weight) + " кг | " + fmt(p.coefficient) + " | " + p.pieces + " шт",
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    TextButton(
+                                        onClick = { editPack = index; editWeight = p.weight.toString(); editRows = p.rows.toString() },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) { Text("Изменить", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                                    TextButton(
+                                        onClick = { deletePackIndex = index },
+                                        modifier = Modifier.width(32.dp).height(34.dp),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
                                 }
                             }
                         }
                         item {
                             OutlinedButton(onClick = { showDefects = !showDefects }, modifier = Modifier.fillMaxWidth()) { Text("Брак (" + defects.size + ")") }
                             if (showDefects) defects.forEachIndexed { index, d ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(d.type + ": " + fmt(d.weight) + " кг")
-                                    TextButton(onClick = { editDefect = index; editWeight = d.weight.toString(); editType = d.type }) { Text("Изменить") }
-                                    TextButton(onClick = { deleteDefectIndex = index }) { Text("Удалить") }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(d.type + ": " + fmt(d.weight) + " кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                    TextButton(onClick = { editDefect = index; editWeight = d.weight.toString(); editType = d.type }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Изменить", fontSize = 12.sp, maxLines = 1) }
+                                    TextButton(onClick = { deleteDefectIndex = index }, modifier = Modifier.width(32.dp).height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
                                 }
                             }
                             if (showDefects) Text("Итого брак: " + fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold)
@@ -361,10 +569,10 @@ class MainActivity : ComponentActivity() {
                         item {
                             OutlinedButton(onClick = { showPallets = !showPallets }, modifier = Modifier.fillMaxWidth()) { Text("Поддоны (" + pallets.size + ")") }
                             if (showPallets) pallets.forEachIndexed { index, p ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(p.type + ": " + fmt(p.gross) + " - " + fmt(p.tare) + " = " + fmt(p.net) + " кг", modifier = Modifier.weight(1f))
-                                    TextButton(onClick = { editPallet = index; editGross = p.gross.toString(); editTare = p.tare.toString(); editType = p.type }) { Text("Изменить") }
-                                    TextButton(onClick = { deletePalletIndex = index }) { Text("Удалить") }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(p.type + ": " + fmt(p.gross) + " - " + fmt(p.tare) + " = " + fmt(p.net) + " кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                    TextButton(onClick = { editPallet = index; editGross = p.gross.toString(); editTare = p.tare.toString(); editType = p.type }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Изменить", fontSize = 12.sp, maxLines = 1) }
+                                    TextButton(onClick = { deletePalletIndex = index }, modifier = Modifier.width(32.dp).height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
                                 }
                             }
                         }
@@ -375,13 +583,6 @@ class MainActivity : ComponentActivity() {
                 }
                 "archive" -> {
                     Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Button(onClick = {
-                        historicalDate = today()
-                        historicalProfile = "Уголок 50"
-                        historicalWidth = "5"; historicalRows = "15"; historicalLength = "6"
-                        historicalPacks.clear(); historicalDefects.clear(); historicalPallets.clear()
-                        screen = "archive_new"
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Добавить прошлый день") }
                     Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
                     val allShifts = (0 until savedShifts.length()).map { savedShifts.getJSONObject(it) }
@@ -426,6 +627,9 @@ class MainActivity : ComponentActivity() {
                                 Card(Modifier.fillMaxWidth()) {
                                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                         Text(shift.optString("date") + " · " + shift.optString("profile"), fontWeight = FontWeight.Bold)
+                                        if (shift.optString("status") == "Простой") {
+                                            Text("Простой", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.SemiBold)
+                                        }
                                         Text("Пачек: " + (shift.optJSONArray("packs")?.length() ?: 0) + " · " + fmt(shift.optDouble("packTotal")) + " кг")
                                         Text("Брак: " + fmt(shift.optDouble("defectTotal")) + " кг")
                                         Button(onClick = { archiveShiftJson = shift.toString(); screen = "archive_detail" }, modifier = Modifier.fillMaxWidth()) { Text("Открыть полный бланк") }
@@ -765,6 +969,7 @@ class MainActivity : ComponentActivity() {
                     .put("profile", profile)
                     .put("packTotal", packTotal)
                     .put("defectTotal", defectTotal)
+                    .put("status", if (packs.isEmpty() && defects.isEmpty() && pallets.isEmpty()) "Простой" else "Завершена")
                     .put("packs", JSONArray().also { array -> packs.forEach { p -> array.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
                     .put("defects", JSONArray().also { array -> defects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                     .put("pallets", JSONArray().also { array -> pallets.forEach { p -> array.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
@@ -784,6 +989,53 @@ class MainActivity : ComponentActivity() {
                 }
             }) { Text("Завершить") } },
             dismissButton = { TextButton(onClick = { confirmFinish = false }) { Text("Отмена") } })
+    }
+
+    /**
+     * A shift belongs to one calendar date. When the device date advances,
+     * archive the previous active shift and prepare an empty record for today.
+     */
+    private fun archiveStaleActiveShift(): Boolean {
+        if (!prefs.getBoolean("active", false)) return false
+        val shiftDate = prefs.getString("date", "") ?: ""
+        if (shiftDate.isBlank() || shiftDate == today()) return false
+
+        val packs = try { JSONArray(prefs.getString("packs", "[]")) } catch (_: Exception) { JSONArray() }
+        val defects = try { JSONArray(prefs.getString("defects", "[]")) } catch (_: Exception) { JSONArray() }
+        val pallets = try { JSONArray(prefs.getString("pallets", "[]")) } catch (_: Exception) { JSONArray() }
+        val packTotal = (0 until packs.length()).sumOf { packs.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
+        val defectTotal = (0 until defects.length()).sumOf { defects.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
+        val idle = packs.length() == 0 && defects.length() == 0 && pallets.length() == 0
+
+        val savedShifts = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+        val alreadyArchived = (0 until savedShifts.length()).any {
+            savedShifts.optJSONObject(it)?.optString("date") == shiftDate
+        }
+        if (!alreadyArchived) {
+            savedShifts.put(JSONObject()
+                .put("date", shiftDate)
+                .put("profile", prefs.getString("profile", "Уголок 50") ?: "Уголок 50")
+                .put("packTotal", packTotal)
+                .put("defectTotal", defectTotal)
+                .put("packs", packs)
+                .put("defects", defects)
+                .put("pallets", pallets)
+                .put("status", if (idle) "Простой" else "Завершена")
+                .put("autoClosed", true)
+                .put("closedAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())))
+        }
+
+        prefs.edit()
+            .putString("shifts_archive", savedShifts.toString())
+            .putString("archive", "Сохранено смен: " + savedShifts.length())
+            .putBoolean("active", false)
+            .putString("date", today())
+            .putString("packs", "[]")
+            .putString("defects", "[]")
+            .putString("pallets", "[]")
+            .commit()
+        writeAutomaticBackup()
+        return true
     }
 
     private fun writeAutomaticBackup(): File {
