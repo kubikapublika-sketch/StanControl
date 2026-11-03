@@ -84,9 +84,10 @@ class MainActivity : ComponentActivity() {
         val profileNames = remember {
             mutableStateListOf<String>().apply {
                 val saved = try { JSONArray(prefs.getString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
-                for (i in 0 until saved.length()) add(saved.optString(i))
-                listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { if (!contains(it)) add(it) }
-                if (isEmpty()) add("Уголок 50")
+                for (i in 0 until saved.length()) {
+                    val name = saved.optString(i).trim()
+                    if (name.isNotEmpty() && !contains(name)) add(name)
+                }
             }
         }
         var showProfileManager by remember { mutableStateOf(false) }
@@ -207,47 +208,53 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("StanControl", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                if (screen != "home") TextButton(onClick = { screen = if (screen == "settings") "home" else "work" }) { Text("Назад") }
+                if (screen != "home") TextButton(onClick = { screen = when (screen) { "settings", "profile_select" -> "home"; "work", "table" -> "home"; else -> "home" } }) { Text("Назад") }
             }
             when (screen) {
                 "home" -> {
-                    if (!active) {
-                        Text("Новая смена", style = MaterialTheme.typography.titleLarge)
-                        Text("Дата смены: $date", style = MaterialTheme.typography.bodyLarge)
-                        if (archiveHasDate(date)) {
-                            Text("Смена за сегодня уже есть в архиве. Новую смену открыть нельзя.", color = MaterialTheme.colorScheme.error)
-                        }
-                        Text("Рабочий профиль")
-                        profileNames.forEach { item ->
-                            FilterChip(selected = profile == item, onClick = {
-                                profile = item
-                                val key = item.substringAfterLast(" ")
-                                val defaultWidth = when (item) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
-                                val defaultRows = if (item == "Уголок 40") "20" else "15"
-                                width = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
-                                rows = prefs.getString("profile_${key}_rows", defaultRows) ?: defaultRows
-                                length = prefs.getString("profile_${key}_length", "6") ?: "6"
-                            }, label = { Text(item) })
-                        }
-                        Button(
-                            onClick = { active = true; screen = "work"; saveAll() },
-                            enabled = !archiveHasDate(date),
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Начать смену") }
-                    } else {
-                        Text("Смена " + date, style = MaterialTheme.typography.titleLarge)
+                    if (active) {
+                        Text("Смена $date", style = MaterialTheme.typography.titleLarge)
                         Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Продолжить смену") }
-                        OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
+                        OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
+                    } else {
+                        Button(onClick = { screen = "profile_select" }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
                     }
                     OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
                     OutlinedButton(onClick = { screen = "settings" }, modifier = Modifier.fillMaxWidth()) { Text("Настройки") }
                 }
+                "profile_select" -> {
+                    Text("Выбрать профиль", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    if (profileNames.isEmpty()) {
+                        Text("Профили ещё не созданы. Сначала создай профиль в настройках.")
+                        Button(onClick = { screen = "settings"; showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Создать профиль") }
+                    } else {
+                        profileNames.forEach { item ->
+                            OutlinedButton(onClick = {
+                                profile = item
+                                val key = item.substringAfterLast(" ")
+                                width = prefs.getString("profile_${key}_width", "5") ?: "5"
+                                rows = prefs.getString("profile_${key}_rows", "15") ?: "15"
+                                length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                                date = today()
+                                if (archiveHasDate(date)) {
+                                    android.widget.Toast.makeText(this@MainActivity, "Смена за сегодня уже есть в архиве.", android.widget.Toast.LENGTH_LONG).show()
+                                } else {
+                                    packs.clear(); defects.clear(); pallets.clear()
+                                    inputWeight = ""; gross = ""; tare = ""
+                                    active = true
+                                    screen = "work"
+                                    saveAll()
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text(item) }
+                        }
+                    }
+                    OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("Назад") }
+                }
                 "settings" -> {
                     Text("Настройки", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Рабочие профили", fontWeight = FontWeight.SemiBold)
-                    Text("Выбранный профиль для следующей смены: $profile")
-                    OutlinedButton(onClick = { showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Управление профилями 30 / 40 / 50 и своими") }
-                    OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.fillMaxWidth()) { Text("Параметры выбранного профиля") }
+                    Text("Профили", fontWeight = FontWeight.SemiBold)
+                    Text("Создавай профили и настраивай каждый отдельно.")
+                    OutlinedButton(onClick = { showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Создание и настройка профилей") }
                     Divider()
                     Text("Вариант PDF-бланка", fontWeight = FontWeight.SemiBold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
