@@ -925,7 +925,7 @@ class MainActivity : ComponentActivity() {
             canvas.drawText(value, tx, y + h / 2f + size / 3f, paint)
         }
         var y = 24f
-        val widths = listOf(22f, 57f, 31f, 40f, 43f, 43f, 43f, 43f, 43f, 75f, 76f)
+        val widths = listOf(24f, 60f, 36f, 44f, 48f, 48f, 48f, 48f, 48f, 80f, 75f)
         val headers = listOf("№", "Дата", "Вид", "Коэф.", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак: вид", "Вес, кг")
         var x = left
         headers.forEachIndexed { i, h -> cell(x, y, widths[i], 23f, h, true, 6.4f, true); x += widths[i] }
