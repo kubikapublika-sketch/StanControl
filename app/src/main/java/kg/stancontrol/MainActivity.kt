@@ -272,6 +272,7 @@ class MainActivity : ComponentActivity() {
         var editPallet by remember { mutableStateOf(-1) }
         var editWeight by remember { mutableStateOf("") }
         var editRows by remember { mutableStateOf("") }
+        var editWidth by remember { mutableStateOf("") }
         var editGross by remember { mutableStateOf("") }
         var editTare by remember { mutableStateOf("") }
         var editType by remember { mutableStateOf("") }
@@ -442,7 +443,7 @@ class MainActivity : ComponentActivity() {
                             softWrap = false
                         )
                     }
-                    Card(Modifier.fillMaxWidth()) {
+                    if (mode == "Пачка") Card(Modifier.fillMaxWidth()) {
                         val lp = lastPack
                         Column(
                             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
@@ -469,7 +470,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         "К ${fmt(lp.coefficient)}",
                                         modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.titleMedium,
+                                        style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         softWrap = false
@@ -504,7 +505,25 @@ class MainActivity : ComponentActivity() {
                         "Брак" -> {
                             Text("Регистрация брака", fontWeight = FontWeight.SemiBold)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("Резка", "Металлолом").forEach { item -> FilterChip(defectType == item, { defectType = item }, label = { Text(item) }) }
+                                listOf("Резка", "Металлолом").forEach { item ->
+                                    if (defectType == item) {
+                                        Button(
+                                            onClick = { defectType = item },
+                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { defectType = item },
+                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+                                        }
+                                    }
+                                }
                             }
                             OutlinedTextField(inputWeight, { inputWeight = it }, label = { Text("Вес брака, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Button(onClick = { addDefect() }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ДОБАВИТЬ БРАК") }
@@ -544,7 +563,7 @@ class MainActivity : ComponentActivity() {
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     TextButton(
-                                        onClick = { editPack = index; editWeight = p.weight.toString(); editRows = p.rows.toString() },
+                                        onClick = { editPack = index; editWeight = p.weight.toString(); editRows = p.rows.toString(); editWidth = p.width.toString() },
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                     ) { Text("Изменить", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                                     TextButton(
@@ -916,15 +935,16 @@ class MainActivity : ComponentActivity() {
 
         if (editPack >= 0) AlertDialog(onDismissRequest = { editPack = -1 }, title = { Text("Изменить пачку") }, text = {
             Column {
-                OutlinedTextField(editWeight, { editWeight = it }, label = { Text("Вес, кг") })
-                OutlinedTextField(editRows, { editRows = it }, label = { Text("Ряды") })
+                OutlinedTextField(editWeight, { editWeight = it }, label = { Text("Вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                OutlinedTextField(editRows, { editRows = it }, label = { Text("Ряды") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(editWidth, { editWidth = it }, label = { Text("Ширина, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         }, confirmButton = { TextButton(onClick = {
             val w = editWeight.replace(',', '.').toDoubleOrNull()
             val r = editRows.toIntOrNull()
-            val widthValue = packs[editPack].width
+            val widthValue = editWidth.toIntOrNull()
             val lengthValue = packs[editPack].length
-            if (w != null && r != null && w > 0 && r > 0) {
+            if (w != null && r != null && widthValue != null && w > 0 && r > 0 && widthValue > 0) {
                 val count = (widthValue * 2 - 1) * r - (widthValue - 1)
                 packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue) * 10.0) / 10.0, widthValue, lengthValue)
                 saveAll()
