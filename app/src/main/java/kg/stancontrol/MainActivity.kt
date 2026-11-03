@@ -152,6 +152,12 @@ class MainActivity : ComponentActivity() {
         val lastPack = packs.lastOrNull()
         val rejectPercent = if (packTotal + defectTotal > 0) defectTotal * 100.0 / (packTotal + defectTotal) else 0.0
 
+        fun archiveHasDate(targetDate: String): Boolean {
+            if (targetDate.isBlank()) return false
+            val saved = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+            return (0 until saved.length()).any { saved.optJSONObject(it)?.optString("date") == targetDate }
+        }
+
         fun saveAll() {
             val p = JSONArray()
             packs.forEach { p.put(JSONObject().put("w", it.weight).put("r", it.rows).put("n", it.pieces).put("k", it.coefficient).put("width", it.width).put("length", it.length)) }
@@ -220,7 +226,15 @@ class MainActivity : ComponentActivity() {
                                 length = prefs.getString("profile_${key}_length", "6") ?: "6"
                             }, label = { Text(item) })
                         }
-                        Button(onClick = { active = true; screen = "work"; saveAll() }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
+                        Button(onClick = {
+                            if (archiveHasDate(date)) {
+                                android.widget.Toast.makeText(this@MainActivity, "Смена за эту дату уже есть в архиве. Выберите другую дату.", android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                active = true
+                                screen = "work"
+                                saveAll()
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
                     } else {
                         Text("Смена " + date, style = MaterialTheme.typography.titleLarge)
                         Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Продолжить смену") }
@@ -494,7 +508,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Button(onClick = {
                         val saved = JSONArray(prefs.getString("shifts_archive", "[]"))
-                        val exists = (0 until saved.length()).any { saved.getJSONObject(it).optString("date") == historicalDate }
+                        val exists = archiveHasDate(historicalDate)
                         if (!exists) {
                             val entry = JSONObject()
                                 .put("date", historicalDate).put("profile", historicalProfile)
@@ -691,6 +705,10 @@ class MainActivity : ComponentActivity() {
         if (confirmFinish) AlertDialog(onDismissRequest = { confirmFinish = false }, title = { Text("Завершить смену?") },
             text = { Text("Смена будет сохранена в архиве.") },
             confirmButton = { TextButton(onClick = {
+                if (archiveHasDate(date)) {
+                    android.widget.Toast.makeText(this@MainActivity, "Смена за эту дату уже есть в архиве. Текущая смена не сохранена.", android.widget.Toast.LENGTH_LONG).show()
+                    confirmFinish = false
+                } else {
                 val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
                 val shift = JSONObject()
                     .put("date", date)
@@ -713,6 +731,7 @@ class MainActivity : ComponentActivity() {
                 saveAll()
                 screen = "home"
                 confirmFinish = false
+                }
             }) { Text("Завершить") } },
             dismissButton = { TextButton(onClick = { confirmFinish = false }) { Text("Отмена") } })
     }
