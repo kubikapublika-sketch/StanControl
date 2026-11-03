@@ -258,8 +258,8 @@ class MainActivity : ComponentActivity() {
                     Divider()
                     Text("Вариант PDF-бланка", fontWeight = FontWeight.SemiBold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = pdfTemplate == "classic", onClick = { pdfTemplate = "classic"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Бланк 1") })
-                        FilterChip(selected = pdfTemplate == "grid", onClick = { pdfTemplate = "grid"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Бланк 2") })
+                        FilterChip(selected = pdfTemplate == "classic", onClick = { pdfTemplate = "classic"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Норм PDF") })
+                        FilterChip(selected = pdfTemplate == "grid", onClick = { pdfTemplate = "grid"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Чмошная хуйня") })
                     }
                     Text(if (pdfTemplate == "grid") "Выбран новый табличный бланк с длинами 6–2 м и поддонами." else "Выбран текущий бланк без крупного заголовка сверху.", style = MaterialTheme.typography.bodySmall)
                     Divider()
