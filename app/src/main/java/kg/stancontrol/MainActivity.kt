@@ -56,6 +56,17 @@ class MainActivity : ComponentActivity() {
                         throw IllegalArgumentException("Это не резервная копия StanControl или версия не поддерживается")
                     }
                     val data = root.optJSONObject("data") ?: throw IllegalArgumentException("В файле нет данных")
+
+                    // Preserve the currently active shift for today before replacing preferences.
+                    val todayDate = today()
+                    val keepTodayShift = prefs.getBoolean("active", false) &&
+                        (prefs.getString("date", "") ?: "") == todayDate
+                    val todayProfile = prefs.getString("profile", "Уголок 50") ?: "Уголок 50"
+                    val todayPacks = prefs.getString("packs", "[]") ?: "[]"
+                    val todayDefects = prefs.getString("defects", "[]") ?: "[]"
+                    val todayPallets = prefs.getString("pallets", "[]") ?: "[]"
+                    val currentArchive = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+
                     writeAutomaticBackup()
                     val editor = prefs.edit().clear()
                     val keys = data.keys()
@@ -70,8 +81,36 @@ class MainActivity : ComponentActivity() {
                             is Float -> editor.putFloat(key, value)
                         }
                     }
+
+                    // Merge archive entries by date. Keep the device's current archive version on conflicts.
+                    val restoredArchive = try { JSONArray(data.optString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+                    val mergedArchive = JSONArray()
+                    val currentDates = mutableSetOf<String>()
+                    for (i in 0 until currentArchive.length()) {
+                        currentArchive.optJSONObject(i)?.optString("date")?.takeIf { it.isNotBlank() }?.let { currentDates.add(it) }
+                    }
+                    for (i in 0 until restoredArchive.length()) {
+                        val item = restoredArchive.optJSONObject(i) ?: continue
+                        val itemDate = item.optString("date", "")
+                        if (itemDate.isNotBlank() && itemDate !in currentDates) mergedArchive.put(item)
+                    }
+                    for (i in 0 until currentArchive.length()) {
+                        currentArchive.optJSONObject(i)?.let { mergedArchive.put(it) }
+                    }
+                    editor.putString("shifts_archive", mergedArchive.toString())
+                        .putString("archive", "Сохранено смен: " + mergedArchive.length())
+
+                    // A restore must never roll back or erase work already entered in today's active shift.
+                    if (keepTodayShift) {
+                        editor.putBoolean("active", true)
+                            .putString("date", todayDate)
+                            .putString("profile", todayProfile)
+                            .putString("packs", todayPacks)
+                            .putString("defects", todayDefects)
+                            .putString("pallets", todayPallets)
+                    }
                     editor.commit()
-                    android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Приложение перезапустится.", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Текущая смена за сегодня сохранена. Приложение перезапустится.", android.widget.Toast.LENGTH_LONG).show()
                     recreate()
                 } catch (e: Exception) {
                     android.widget.Toast.makeText(this@MainActivity, "Ошибка восстановления: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
@@ -742,6 +781,7 @@ class MainActivity : ComponentActivity() {
             .putString("shifts_archive", savedShifts.toString())
             .putString("archive", "Сохранено смен: " + savedShifts.length())
             .putBoolean("active", false)
+            .putString("date", today())
             .putString("packs", "[]")
             .putString("defects", "[]")
             .putString("pallets", "[]")
