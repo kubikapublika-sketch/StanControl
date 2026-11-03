@@ -66,9 +66,21 @@ class MainActivity : ComponentActivity() {
                     val todayDefects = prefs.getString("defects", "[]") ?: "[]"
                     val todayPallets = prefs.getString("pallets", "[]") ?: "[]"
                     val currentArchive = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+                    val currentProfileNames = try { JSONArray(prefs.getString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
+                    val currentProfileSettings = mutableMapOf<String, Triple<String?, String?, String?>>()
+                    for (i in 0 until currentProfileNames.length()) {
+                        val name = currentProfileNames.optString(i)
+                        val key = name.substringAfterLast(" ")
+                        currentProfileSettings[name] = Triple(
+                            prefs.getString("profile_${key}_width", null),
+                            prefs.getString("profile_${key}_rows", null),
+                            prefs.getString("profile_${key}_length", null)
+                        )
+                    }
+                    val currentSelectedProfile = prefs.getString("profile", "") ?: ""
 
                     writeAutomaticBackup()
-                    val editor = prefs.edit().clear()
+                    val editor = prefs.edit()
                     val keys = data.keys()
                     while (keys.hasNext()) {
                         val key = keys.next()
@@ -100,6 +112,28 @@ class MainActivity : ComponentActivity() {
                     editor.putString("shifts_archive", mergedArchive.toString())
                         .putString("archive", "Сохранено смен: " + mergedArchive.length())
 
+                    // Merge profiles instead of replacing local configuration with an older backup.
+                    val restoredProfileNames = try { JSONArray(data.optString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
+                    val mergedProfileNames = JSONArray()
+                    val seenProfileNames = mutableSetOf<String>()
+                    for (source in listOf(currentProfileNames, restoredProfileNames)) {
+                        for (i in 0 until source.length()) {
+                            val name = source.optString(i).trim()
+                            if (name.isNotBlank() && seenProfileNames.add(name)) mergedProfileNames.put(name)
+                        }
+                    }
+                    editor.putString("profile_list", mergedProfileNames.toString())
+                    currentProfileSettings.forEach { (name, values) ->
+                        val key = name.substringAfterLast(" ")
+                        values.first?.let { editor.putString("profile_${key}_width", it) }
+                        values.second?.let { editor.putString("profile_${key}_rows", it) }
+                        values.third?.let { editor.putString("profile_${key}_length", it) }
+                    }
+                    if (currentSelectedProfile.isNotBlank() && (0 until currentProfileNames.length()).any { currentProfileNames.optString(it) == currentSelectedProfile }) {
+                        editor.putString("profile", currentSelectedProfile)
+                    }
+
+
                     // A restore must never roll back or erase work already entered in today's active shift.
                     if (keepTodayShift) {
                         editor.putBoolean("active", true)
@@ -110,7 +144,8 @@ class MainActivity : ComponentActivity() {
                             .putString("pallets", todayPallets)
                     }
                     editor.commit()
-                    android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Текущая смена за сегодня сохранена. Приложение перезапустится.", android.widget.Toast.LENGTH_LONG).show()
+                    writeAutomaticBackup()
+                    android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Настройки и сегодняшняя активная смена сохранены.", android.widget.Toast.LENGTH_LONG).show()
                     recreate()
                 } catch (e: Exception) {
                     android.widget.Toast.makeText(this@MainActivity, "Ошибка восстановления: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
@@ -120,14 +155,18 @@ class MainActivity : ComponentActivity() {
         var active by remember { mutableStateOf(prefs.getBoolean("active", false)) }
         var screen by remember { mutableStateOf("home") }
         var mode by remember { mutableStateOf("Пачка") }
-        var profile by remember { mutableStateOf(prefs.getString("profile", "Уголок 50") ?: "Уголок 50") }
         val profileNames = remember {
             mutableStateListOf<String>().apply {
                 val saved = try { JSONArray(prefs.getString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
-                for (i in 0 until saved.length()) add(saved.optString(i))
-                listOf("Уголок 50", "Уголок 40", "Уголок 30").forEach { if (!contains(it)) add(it) }
-                if (isEmpty()) add("Уголок 50")
+                for (i in 0 until saved.length()) {
+                    val name = saved.optString(i).trim()
+                    if (name.isNotBlank() && !contains(name)) add(name)
+                }
             }
+        }
+        var profile by remember {
+            val storedProfile = prefs.getString("profile", "") ?: ""
+            mutableStateOf(if (active && storedProfile.isNotBlank()) storedProfile else storedProfile.takeIf { profileNames.contains(it) } ?: profileNames.firstOrNull().orEmpty())
         }
         var showProfileManager by remember { mutableStateOf(false) }
         var newProfileName by remember { mutableStateOf("") }
@@ -169,7 +208,7 @@ class MainActivity : ComponentActivity() {
         var showPreviousYears by remember { mutableStateOf(false) }
         var archiveYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
         var historicalDate by remember { mutableStateOf(today()) }
-        var historicalProfile by remember { mutableStateOf("Уголок 50") }
+        var historicalProfile by remember { mutableStateOf(profile) }
         var historicalMode by remember { mutableStateOf("Пачка") }
         var historicalWidth by remember { mutableStateOf("5") }
         var historicalRows by remember { mutableStateOf("15") }
@@ -240,38 +279,84 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("StanControl", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                if (screen != "home") TextButton(onClick = { screen = "work" }) { Text("Назад") }
+                if (screen != "home") TextButton(onClick = { screen = "home" }) { Text("На главную") }
             }
             when (screen) {
                 "home" -> {
                     if (!active) {
-                        Text("Начать день", style = MaterialTheme.typography.titleLarge)
-                        OutlinedTextField(date, { date = it }, label = { Text("Дата") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        Text("Профиль")
-                        profileNames.forEach { item ->
-                            FilterChip(selected = profile == item, onClick = {
-                                profile = item
-                                val key = item.substringAfterLast(" ")
-                                val defaultWidth = when (item) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
-                                val defaultRows = if (item == "Уголок 40") "20" else "15"
-                                width = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
-                                rows = prefs.getString("profile_${key}_rows", defaultRows) ?: defaultRows
-                                length = prefs.getString("profile_${key}_length", "6") ?: "6"
-                            }, label = { Text(item) })
-                        }
-                        OutlinedButton(onClick = { showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить / удалить профиль") }
-                        OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.fillMaxWidth()) { Text("Настроить профиль") }
-                        Button(onClick = { active = true; screen = "work"; saveAll() }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
+                        Text("Главное меню", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Дата смены: ${today()}", style = MaterialTheme.typography.bodyMedium)
+                        Button(
+                            onClick = {
+                                val shiftDate = today()
+                                val archived = JSONArray(prefs.getString("shifts_archive", "[]"))
+                                val alreadyArchived = (0 until archived.length()).any {
+                                    archived.optJSONObject(it)?.optString("date") == shiftDate
+                                }
+                                when {
+                                    profileNames.isEmpty() || profile.isBlank() || !profileNames.contains(profile) -> {
+                                        screen = "settings"
+                                        android.widget.Toast.makeText(this@MainActivity, "Сначала создай профиль в настройках.", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                    alreadyArchived -> {
+                                        android.widget.Toast.makeText(this@MainActivity, "Смена за эту дату уже есть в архиве.", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                    else -> {
+                                        date = shiftDate
+                                        active = true
+                                        screen = "work"
+                                        saveAll()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(54.dp)
+                        ) { Text("Начать смену") }
+                        OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Архив смен") }
+                        OutlinedButton(onClick = { screen = "settings" }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Настройки") }
                     } else {
-                        Text("Смена " + date, style = MaterialTheme.typography.titleLarge)
-                        Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Продолжить смену") }
-                        OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
-                    OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
-                        OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
-                        OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
-                        OutlinedButton(onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "text/json", "application/octet-stream")) }, modifier = Modifier.fillMaxWidth()) { Text("Восстановить из файла бекапа") }
-                        OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
+                        Text("Смена $date", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("Продолжить смену") }
+                        OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Общий бланк / таблица") }
+                        OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Архив смен") }
+                        OutlinedButton(onClick = { screen = "settings" }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Настройки") }
+                        Button(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("Завершить смену") }
                     }
+                }
+                "settings" -> {
+                    Text("Настройки", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Профили производства", fontWeight = FontWeight.SemiBold)
+                    if (profileNames.isEmpty()) {
+                        Text("Профили ещё не созданы. Добавь свой профиль ниже.")
+                    } else {
+                        profileNames.forEach { item ->
+                            FilterChip(
+                                selected = profile == item,
+                                onClick = {
+                                    profile = item
+                                    val key = item.substringAfterLast(" ")
+                                    width = prefs.getString("profile_${key}_width", "5") ?: "5"
+                                    rows = prefs.getString("profile_${key}_rows", "15") ?: "15"
+                                    length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                                    prefs.edit().putString("profile", item).apply()
+                                },
+                                label = { Text(item) }
+                            )
+                        }
+                    }
+                    OutlinedButton(enabled = !active, onClick = { showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить / удалить профиль") }
+                    OutlinedButton(
+                        enabled = profile.isNotBlank() && profileNames.contains(profile) && !active,
+                        onClick = { showSettings = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Настроить выбранный профиль") }
+                    HorizontalDivider()
+                    Text("Резервная копия", fontWeight = FontWeight.SemiBold)
+                    OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
+                    OutlinedButton(
+                        onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "text/json", "application/octet-stream")) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Восстановить из файла бэкапа") }
+                    OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("Назад") }
                 }
                 "work" -> {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -380,11 +465,19 @@ class MainActivity : ComponentActivity() {
                 "archive" -> {
                     Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Button(onClick = {
-                        historicalDate = today()
-                        historicalProfile = "Уголок 50"
-                        historicalWidth = "5"; historicalRows = "15"; historicalLength = "6"
-                        historicalPacks.clear(); historicalDefects.clear(); historicalPallets.clear()
-                        screen = "archive_new"
+                        if (profileNames.isEmpty()) {
+                            screen = "settings"
+                            android.widget.Toast.makeText(this@MainActivity, "Сначала создай профиль в настройках.", android.widget.Toast.LENGTH_LONG).show()
+                        } else {
+                            historicalDate = today()
+                            historicalProfile = profileNames.first()
+                            val key = historicalProfile.substringAfterLast(" ")
+                            historicalWidth = prefs.getString("profile_${key}_width", "5") ?: "5"
+                            historicalRows = prefs.getString("profile_${key}_rows", "15") ?: "15"
+                            historicalLength = prefs.getString("profile_${key}_length", "6") ?: "6"
+                            historicalPacks.clear(); historicalDefects.clear(); historicalPallets.clear()
+                            screen = "archive_new"
+                        }
                     }, modifier = Modifier.fillMaxWidth()) { Text("Добавить прошлый день") }
                     Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
@@ -600,7 +693,7 @@ class MainActivity : ComponentActivity() {
             title = { Text("Управление профилями") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Текущий профиль: $profile")
+                    Text(if (profile.isBlank()) "Текущий профиль: не выбран" else "Текущий профиль: $profile")
                     OutlinedTextField(newProfileName, { newProfileName = it }, label = { Text("Название, например Уголок 63") }, singleLine = true)
                     OutlinedTextField(newProfileWidth, { newProfileWidth = it }, label = { Text("Ширина пачки, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                     OutlinedTextField(newProfileRows, { newProfileRows = it }, label = { Text("Рядов по умолчанию") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
@@ -635,7 +728,7 @@ class MainActivity : ComponentActivity() {
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { if (profileNames.size > 1) confirmDeleteProfile = true else android.widget.Toast.makeText(this@MainActivity, "Нельзя удалить последний профиль", android.widget.Toast.LENGTH_SHORT).show() }) { Text("Удалить текущий") }
+                    TextButton(enabled = profile.isNotBlank() && !active, onClick = { confirmDeleteProfile = true }) { Text("Удалить текущий") }
                     TextButton(onClick = { showProfileManager = false }) { Text("Закрыть") }
                 }
             }
@@ -645,15 +738,25 @@ class MainActivity : ComponentActivity() {
             title = { Text("Удалить профиль $profile?") },
             text = { Text("Профиль исчезнет из списка. Уже сохранённые смены и пачки в архиве останутся без изменений.") },
             confirmButton = { TextButton(onClick = {
-                if (profileNames.size > 1) {
+                if (!active && profile.isNotBlank()) {
+                    val removedKey = profile.substringAfterLast(" ")
                     profileNames.remove(profile)
-                    prefs.edit().putString("profile_list", JSONArray(profileNames).toString()).apply()
-                    profile = profileNames.first()
-                    val key = profile.substringAfterLast(" ")
-                    val defaultWidth = when (profile) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
-                    width = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
-                    rows = prefs.getString("profile_${key}_rows", if (profile == "Уголок 40") "20" else "15") ?: "15"
-                    length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                    prefs.edit()
+                        .putString("profile_list", JSONArray(profileNames).toString())
+                        .remove("profile_${removedKey}_width")
+                        .remove("profile_${removedKey}_rows")
+                        .remove("profile_${removedKey}_length")
+                        .apply()
+                    profile = profileNames.firstOrNull().orEmpty()
+                    if (profile.isNotBlank()) {
+                        val key = profile.substringAfterLast(" ")
+                        width = prefs.getString("profile_${key}_width", "5") ?: "5"
+                        rows = prefs.getString("profile_${key}_rows", "15") ?: "15"
+                        length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                    } else {
+                        width = "5"; rows = "15"; length = "6"
+                    }
+                    prefs.edit().putString("profile", profile).apply()
                     writeAutomaticBackup()
                 }
                 confirmDeleteProfile = false
@@ -724,7 +827,10 @@ class MainActivity : ComponentActivity() {
                     .put("packs", JSONArray().also { array -> packs.forEach { p -> array.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
                     .put("defects", JSONArray().also { array -> defects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                     .put("pallets", JSONArray().also { array -> pallets.forEach { p -> array.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
-                savedShifts.put(shift)
+                val existingIndex = (0 until savedShifts.length()).firstOrNull {
+                    savedShifts.optJSONObject(it)?.optString("date") == date
+                }
+                if (existingIndex == null) savedShifts.put(shift) else savedShifts.put(existingIndex, shift)
                 prefs.edit().putString("shifts_archive", savedShifts.toString())
                     .putString("archive", "Сохранено смен: " + savedShifts.length())
                     .putBoolean("active", false)
