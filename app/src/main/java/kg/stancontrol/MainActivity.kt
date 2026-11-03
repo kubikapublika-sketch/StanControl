@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        archiveStaleActiveShift()
         setContent { MaterialTheme { MainScreen() } }
     }
 
@@ -699,6 +700,53 @@ class MainActivity : ComponentActivity() {
                 confirmFinish = false
             }) { Text("Завершить") } },
             dismissButton = { TextButton(onClick = { confirmFinish = false }) { Text("Отмена") } })
+    }
+
+
+    /**
+     * A shift belongs to one production date. If an active shift is restored
+     * from a backup on a later date, archive its data instead of reopening it.
+     */
+    private fun archiveStaleActiveShift() {
+        if (!prefs.getBoolean("active", false)) return
+        val shiftDate = prefs.getString("date", "") ?: ""
+        if (shiftDate.isBlank() || shiftDate == today()) return
+
+        val packs = try { JSONArray(prefs.getString("packs", "[]")) } catch (_: Exception) { JSONArray() }
+        val defects = try { JSONArray(prefs.getString("defects", "[]")) } catch (_: Exception) { JSONArray() }
+        val pallets = try { JSONArray(prefs.getString("pallets", "[]")) } catch (_: Exception) { JSONArray() }
+
+        val packTotal = (0 until packs.length()).sumOf { packs.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
+        val defectTotal = (0 until defects.length()).sumOf { defects.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
+
+        val savedShifts = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+        val alreadyArchived = (0 until savedShifts.length()).any {
+            savedShifts.optJSONObject(it)?.optString("date") == shiftDate
+        }
+
+        if (!alreadyArchived) {
+            val shift = JSONObject()
+                .put("date", shiftDate)
+                .put("profile", prefs.getString("profile", "Уголок 50") ?: "Уголок 50")
+                .put("packTotal", packTotal)
+                .put("defectTotal", defectTotal)
+                .put("packs", packs)
+                .put("defects", defects)
+                .put("pallets", pallets)
+                .put("autoClosed", true)
+                .put("closedAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
+            savedShifts.put(shift)
+        }
+
+        prefs.edit()
+            .putString("shifts_archive", savedShifts.toString())
+            .putString("archive", "Сохранено смен: " + savedShifts.length())
+            .putBoolean("active", false)
+            .putString("packs", "[]")
+            .putString("defects", "[]")
+            .putString("pallets", "[]")
+            .apply()
+        writeAutomaticBackup()
     }
 
     private fun writeAutomaticBackup(): File {
