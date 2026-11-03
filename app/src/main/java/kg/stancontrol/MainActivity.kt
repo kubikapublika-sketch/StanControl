@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
         var defectType by remember { mutableStateOf("Резка") }
         var palletType by remember { mutableStateOf("Прокат") }
         var showSettings by remember { mutableStateOf(false) }
+        var pdfTemplate by remember { mutableStateOf(prefs.getString("pdf_template", "classic") ?: "classic") }
         var showPacks by remember { mutableStateOf(true) }
         var showDefects by remember { mutableStateOf(false) }
         var showPallets by remember { mutableStateOf(false) }
@@ -200,14 +201,14 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("StanControl", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                if (screen != "home") TextButton(onClick = { screen = "work" }) { Text("Назад") }
+                if (screen != "home") TextButton(onClick = { screen = if (screen == "settings") "home" else "work" }) { Text("Назад") }
             }
             when (screen) {
                 "home" -> {
                     if (!active) {
-                        Text("Начать день", style = MaterialTheme.typography.titleLarge)
-                        OutlinedTextField(date, { date = it }, label = { Text("Дата") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        Text("Профиль")
+                        Text("Новая смена", style = MaterialTheme.typography.titleLarge)
+                        OutlinedTextField(date, { date = it }, label = { Text("Дата смены") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Text("Рабочий профиль")
                         profileNames.forEach { item ->
                             FilterChip(selected = profile == item, onClick = {
                                 profile = item
@@ -219,19 +220,33 @@ class MainActivity : ComponentActivity() {
                                 length = prefs.getString("profile_${key}_length", "6") ?: "6"
                             }, label = { Text(item) })
                         }
-                        OutlinedButton(onClick = { showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить / удалить профиль") }
-                        OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.fillMaxWidth()) { Text("Настроить профиль") }
                         Button(onClick = { active = true; screen = "work"; saveAll() }, modifier = Modifier.fillMaxWidth()) { Text("Начать смену") }
                     } else {
                         Text("Смена " + date, style = MaterialTheme.typography.titleLarge)
                         Button(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Продолжить смену") }
                         OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth()) { Text("Посмотреть таблицу") }
-                    OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
-                        OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
-                        OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
-                        OutlinedButton(onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "text/json", "application/octet-stream")) }, modifier = Modifier.fillMaxWidth()) { Text("Восстановить из файла бекапа") }
-                        OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
                     }
+                    OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
+                    OutlinedButton(onClick = { screen = "settings" }, modifier = Modifier.fillMaxWidth()) { Text("Настройки") }
+                }
+                "settings" -> {
+                    Text("Настройки", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Рабочие профили", fontWeight = FontWeight.SemiBold)
+                    Text("Выбранный профиль для следующей смены: $profile")
+                    OutlinedButton(onClick = { showProfileManager = true }, modifier = Modifier.fillMaxWidth()) { Text("Управление профилями 30 / 40 / 50 и своими") }
+                    OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.fillMaxWidth()) { Text("Параметры выбранного профиля") }
+                    Divider()
+                    Text("Вариант PDF-бланка", fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = pdfTemplate == "classic", onClick = { pdfTemplate = "classic"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Бланк 1") })
+                        FilterChip(selected = pdfTemplate == "grid", onClick = { pdfTemplate = "grid"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Бланк 2") })
+                    }
+                    Text(if (pdfTemplate == "grid") "Выбран новый табличный бланк с длинами 6–2 м и поддонами." else "Выбран текущий бланк без крупного заголовка сверху.", style = MaterialTheme.typography.bodySmall)
+                    Divider()
+                    Text("Резервная копия", fontWeight = FontWeight.SemiBold)
+                    OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
+                    OutlinedButton(onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "text/json", "application/octet-stream")) }, modifier = Modifier.fillMaxWidth()) { Text("Восстановить из файла бекапа") }
+                    OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("На главную") }
                 }
                 "work" -> {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -296,6 +311,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("ОБЩИЙ БЛАНК / ТАБЛИЦА") }
+                    OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
                     OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("На главную") }
                 }
                 "table" -> {
@@ -743,6 +759,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+        if ((prefs.getString("pdf_template", "classic") ?: "classic") == "grid") {
+            shareGridPdf(date, profile, packs, defects, pallets)
+        } else {
+            shareClassicPdf(date, profile, packs, defects, pallets)
+        }
+    }
+
+    private fun shareClassicPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
         val pdf = PdfDocument()
         val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
         val canvas = page.canvas
@@ -793,30 +817,25 @@ class MainActivity : ComponentActivity() {
         val defectWeight = defects.sumOf { it.weight }
         val percent = if (goodWeight + defectWeight > 0) defectWeight * 100.0 / (goodWeight + defectWeight) else 0.0
 
-        // Шапка производственного бланка на всю ширину альбомного листа.
-        paint.color = 0xFF26364A.toInt()
-        canvas.drawRoundRect(left, y, right, y + 112f, 9f, 9f, paint)
-        text("STANCONTROL", left + 14f, y + 20f, 9f, true, 0xFFBFD2E5.toInt())
-        text("ОТЧЁТ ПРОИЗВОДСТВЕННОЙ СМЕНЫ", left + 14f, y + 42f, 16f, true, android.graphics.Color.WHITE)
-        text("ДАТА: $date", left + 14f, y + 63f, 11f, true, android.graphics.Color.WHITE)
-        text("ВИД УГОЛКА: $profile", left + 230f, y + 63f, 11f, true, android.graphics.Color.WHITE)
-        val metricTop = y + 73f
-        val metricBottom = y + 104f
+        // Компактная строка даты и профиля вместо крупного вчерашнего заголовка.
+        text("Дата: $date", left + 6f, y + 12f, 9f, true)
+        text("Вид: $profile", left + 190f, y + 12f, 9f, true)
+        y += 22f
         val metricGap = 8f
         val metricWidth = (width - metricGap * 2f) / 3f
         val metrics = listOf(
             "ЧИСТЫЙ ВЕС" to "${fmt(goodWeight)} кг",
-            "ОБЩИЙ ВЕС БРАКА" to "${fmt(defectWeight)} кг",
-            "БРАК ОТ ОБЩЕГО ВЕСА" to "${fmt(percent)} %"
+            "ВЕС БРАКА" to "${fmt(defectWeight)} кг",
+            "ОБЩИЙ ВЕС" to "${fmt(goodWeight + defectWeight)} кг"
         )
         metrics.forEachIndexed { index, metric ->
             val x = left + index * (metricWidth + metricGap)
-            paint.color = 0xFF40536B.toInt()
-            canvas.drawRoundRect(x, metricTop, x + metricWidth, metricBottom, 4f, 4f, paint)
-            text(metric.first, x + 8f, metricTop + 11f, 8f, true, 0xFFD5E1ED.toInt())
-            text(metric.second, x + 8f, metricTop + 25f, 11f, true, android.graphics.Color.WHITE)
+            paint.color = 0xFFF3F1F6.toInt()
+            canvas.drawRect(x, y, x + metricWidth, y + 25f, paint)
+            text(metric.first, x + 7f, y + 10f, 7.5f, true)
+            text(metric.second, x + 7f, y + 21f, 9f, true)
         }
-        y += 122f
+        y += 31f
 
         section("1. ГОТОВАЯ ПРОДУКЦИЯ · ПАЧКИ")
 
@@ -870,6 +889,106 @@ class MainActivity : ComponentActivity() {
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
         val file = File(dir, "StanControl-$date.pdf")
+        file.outputStream().use { pdf.writeTo(it) }
+        pdf.close()
+        val uri = FileProvider.getUriForFile(this, "kg.stancontrol.fileprovider", file)
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }, "Поделиться PDF"))
+    }
+
+    private fun shareGridPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+        val pdf = PdfDocument()
+        val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
+        val canvas = page.canvas
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val left = 18f
+        val right = 577f
+        val tableWidth = right - left
+        fun drawText(value: String, x: Float, baseline: Float, size: Float = 6.5f, bold: Boolean = false) {
+            paint.color = android.graphics.Color.BLACK
+            paint.textSize = size
+            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            canvas.drawText(value, x, baseline, paint)
+        }
+        fun cell(x: Float, y: Float, w: Float, h: Float, value: String, bold: Boolean = false, size: Float = 6.5f, center: Boolean = false) {
+            paint.color = android.graphics.Color.BLACK
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 0.45f
+            canvas.drawRect(x, y, x + w, y + h, paint)
+            paint.style = Paint.Style.FILL
+            paint.textSize = size
+            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            val tx = if (center) x + (w - paint.measureText(value)) / 2f else x + 2f
+            canvas.drawText(value, tx, y + h / 2f + size / 3f, paint)
+        }
+        var y = 24f
+        val widths = listOf(22f, 57f, 31f, 40f, 43f, 43f, 43f, 43f, 43f, 75f, 76f)
+        val headers = listOf("№", "Дата", "Вид", "Коэф.", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак: вид", "Вес, кг")
+        var x = left
+        headers.forEachIndexed { i, h -> cell(x, y, widths[i], 23f, h, true, 6.4f, true); x += widths[i] }
+        y += 23f
+        val lengths = listOf(6, 5, 4, 3, 2)
+        for (i in 0 until 45) {
+            val p = packs.getOrNull(i)
+            val d = defects.getOrNull(i)
+            val row = mutableListOf(
+                (i + 1).toString(),
+                if (i == 0) date else "",
+                profile.filter { it.isDigit() },
+                p?.let { fmt(it.coefficient) } ?: "",
+                "", "", "", "", "",
+                d?.type ?: "",
+                d?.let { fmt(it.weight) } ?: ""
+            )
+            if (p != null) {
+                val idx = lengths.indexOf(kotlin.math.round(p.length).toInt())
+                if (idx >= 0) row[4 + idx] = p.pieces.toString()
+            }
+            x = left
+            row.forEachIndexed { j, value -> cell(x, y, widths[j], 11.2f, value, false, 6.2f, j != 1 && j != 9); x += widths[j] }
+            y += 11.2f
+        }
+        y += 5f
+        val clean = packs.sumOf { it.weight }
+        val bad = defects.sumOf { it.weight }
+        val total = clean + bad
+        val summaryH = 19f
+        val summaryWidths = listOf(186f, 186f, tableWidth - 372f)
+        val summary = listOf("Чистый вес: ${fmt(clean)} кг", "Вес брака: ${fmt(bad)} кг", "ОБЩИЙ ВЕС: ${fmt(total)} кг")
+        x = left
+        summary.forEachIndexed { i, v -> cell(x, y, summaryWidths[i], summaryH, v, true, if (i == 2) 9f else 8f); x += summaryWidths[i] }
+        y += summaryH + 8f
+        val palletColGap = 8f
+        val palletColWidth = (tableWidth - palletColGap) / 2f
+        val palletRowH = 13f
+        fun palletSection(title: String, type: String, startX: Float) {
+            cell(startX, y, palletColWidth, 17f, title, true, 7.2f, true)
+            var py = y + 17f
+            cell(startX, py, 22f, palletRowH, "№", true, 6f, true)
+            cell(startX + 22f, py, 88f, palletRowH, "Общий вес", true, 6f, true)
+            cell(startX + 110f, py, 72f, palletRowH, "Тара", true, 6f, true)
+            cell(startX + 182f, py, palletColWidth - 182f, palletRowH, "Чистый вес", true, 6f, true)
+            py += palletRowH
+            val selected = pallets.filter { it.type == type }
+            for (i in 0 until 6) {
+                val p = selected.getOrNull(i)
+                cell(startX, py, 22f, palletRowH, (i + 1).toString(), false, 6f, true)
+                cell(startX + 22f, py, 88f, palletRowH, p?.let { fmt(it.gross) } ?: "", false, 6f, true)
+                cell(startX + 110f, py, 72f, palletRowH, p?.let { fmt(it.tare) } ?: "", false, 6f, true)
+                cell(startX + 182f, py, palletColWidth - 182f, palletRowH, p?.let { fmt(it.net) } ?: "", false, 6f, true)
+                py += palletRowH
+            }
+        }
+        palletSection("ПРОКАТ", "Прокат", left)
+        palletSection("ПОДДОНЫ РЕЗКА", "Резка", left + palletColWidth + palletColGap)
+        y += 17f + palletRowH * 7f
+        drawText("Примечание: ____________________________________________", left + 4f, y + 13f, 6.5f)
+        pdf.finishPage(page)
+        val dir = File(cacheDir, "reports").apply { mkdirs() }
+        val file = File(dir, "StanControl-$date-grid.pdf")
         file.outputStream().use { pdf.writeTo(it) }
         pdf.close()
         val uri = FileProvider.getUriForFile(this, "kg.stancontrol.fileprovider", file)
