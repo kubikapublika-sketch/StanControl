@@ -616,8 +616,31 @@ class MainActivity : ComponentActivity() {
             title = { Text("Управление профилями") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Текущий профиль: $profile")
-                    OutlinedTextField(newProfileName, { newProfileName = it }, label = { Text("Название, например Уголок 63") }, singleLine = true)
+                    Text("Созданные профили", fontWeight = FontWeight.SemiBold)
+                    if (profileNames.isEmpty()) Text("Пока нет созданных профилей.")
+                    profileNames.forEach { item ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            TextButton(onClick = {
+                                profile = item
+                                val key = item.substringAfterLast(" ")
+                                width = prefs.getString("profile_${key}_width", "5") ?: "5"
+                                rows = prefs.getString("profile_${key}_rows", "15") ?: "15"
+                                length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                            }) { Text((if (profile == item) "✓ " else "") + item) }
+                            TextButton(onClick = {
+                                profile = item
+                                val key = item.substringAfterLast(" ")
+                                width = prefs.getString("profile_${key}_width", "5") ?: "5"
+                                rows = prefs.getString("profile_${key}_rows", "15") ?: "15"
+                                length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                                showProfileManager = false
+                                showSettings = true
+                            }) { Text("Настроить") }
+                        }
+                    }
+                    Divider()
+                    Text("Создать новый профиль", fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(newProfileName, { newProfileName = it }, label = { Text("Название профиля") }, singleLine = true)
                     OutlinedTextField(newProfileWidth, { newProfileWidth = it }, label = { Text("Ширина пачки, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                     OutlinedTextField(newProfileRows, { newProfileRows = it }, label = { Text("Рядов по умолчанию") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                     OutlinedTextField(newProfileLength, { newProfileLength = it }, label = { Text("Длина изделия, м") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
@@ -651,7 +674,7 @@ class MainActivity : ComponentActivity() {
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { if (profileNames.size > 1) confirmDeleteProfile = true else android.widget.Toast.makeText(this@MainActivity, "Нельзя удалить последний профиль", android.widget.Toast.LENGTH_SHORT).show() }) { Text("Удалить текущий") }
+                    TextButton(onClick = { if (profileNames.contains(profile)) confirmDeleteProfile = true else android.widget.Toast.makeText(this@MainActivity, "Выбери профиль для удаления", android.widget.Toast.LENGTH_SHORT).show() }) { Text("Удалить выбранный") }
                     TextButton(onClick = { showProfileManager = false }) { Text("Закрыть") }
                 }
             }
@@ -661,15 +684,16 @@ class MainActivity : ComponentActivity() {
             title = { Text("Удалить профиль $profile?") },
             text = { Text("Профиль исчезнет из списка. Уже сохранённые смены и пачки в архиве останутся без изменений.") },
             confirmButton = { TextButton(onClick = {
-                if (profileNames.size > 1) {
+                if (profileNames.contains(profile)) {
                     profileNames.remove(profile)
                     prefs.edit().putString("profile_list", JSONArray(profileNames).toString()).apply()
-                    profile = profileNames.first()
-                    val key = profile.substringAfterLast(" ")
-                    val defaultWidth = when (profile) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
-                    width = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
-                    rows = prefs.getString("profile_${key}_rows", if (profile == "Уголок 40") "20" else "15") ?: "15"
-                    length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                    profile = profileNames.firstOrNull() ?: ""
+                    if (profile.isNotBlank()) {
+                        val key = profile.substringAfterLast(" ")
+                        width = prefs.getString("profile_${key}_width", "5") ?: "5"
+                        rows = prefs.getString("profile_${key}_rows", "15") ?: "15"
+                        length = prefs.getString("profile_${key}_length", "6") ?: "6"
+                    }
                     writeAutomaticBackup()
                 }
                 confirmDeleteProfile = false
@@ -678,7 +702,7 @@ class MainActivity : ComponentActivity() {
             dismissButton = { TextButton(onClick = { confirmDeleteProfile = false }) { Text("Отмена") } }
         )
 
-        if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Настройки профиля") }, text = {
+        if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Настройки профиля: $profile") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(width, { width = it }, label = { Text("Ширина пачки, шт") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 OutlinedTextField(length, { length = it }, label = { Text("Длина штуки, м") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
