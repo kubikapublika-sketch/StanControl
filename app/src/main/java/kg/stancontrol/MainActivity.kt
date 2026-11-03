@@ -310,7 +310,7 @@ class MainActivity : ComponentActivity() {
                             Button(onClick = { addPallet() }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ДОБАВИТЬ ПОДДОН") }
                         }
                     }
-                    OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("ОБЩИЙ БЛАНК / ТАБЛИЦА") }
+                    OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Таблица") }
                     OutlinedButton(onClick = { confirmFinish = true }, modifier = Modifier.fillMaxWidth()) { Text("Завершить смену") }
                     OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("На главную") }
                 }
