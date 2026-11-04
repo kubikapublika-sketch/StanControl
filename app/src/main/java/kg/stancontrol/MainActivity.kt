@@ -1314,10 +1314,11 @@ class MainActivity : ComponentActivity() {
         drawText("Вид профиля: $profile", left + 190f, y + 8f, 8f, true)
         y += 17f
 
-        val widths = listOf(24f, 36f, 44f, 48f, 44f, 44f, 44f, 44f, 60f, 75f)
+        // Use the full printable page width for the main grid.
+        val widths = listOf(26f, 42f, 48f, 58f, 50f, 50f, 50f, 50f, 90f, 95f)
         val headers = listOf("№", "Вид", "Коэф.", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак\nВиды", "Вес, кг")
         val gridWidth = widths.sum()
-        val gridLeft = (595f - gridWidth) / 2f
+        val gridLeft = left
         var x = gridLeft
         headers.forEachIndexed { i, h -> cell(x, y, widths[i], 25f, h, true, 6.4f, true); x += widths[i] }
         y += 25f
