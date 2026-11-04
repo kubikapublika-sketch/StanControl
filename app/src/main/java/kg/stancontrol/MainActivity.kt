@@ -313,9 +313,7 @@ class MainActivity : ComponentActivity() {
         fun archiveHasDate(targetDate: String): Boolean {
             if (targetDate.isBlank()) return false
             val saved = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
-            val alreadyArchived = (0 until saved.length()).any { saved.optJSONObject(it)?.optString("date") == targetDate }
-            val isActiveDate = prefs.getBoolean("active", false) && (prefs.getString("date", "") ?: "") == targetDate
-            return alreadyArchived || isActiveDate
+            return (0 until saved.length()).any { saved.optJSONObject(it)?.optString("date") == targetDate }
         }
 
         fun saveAll() {
@@ -789,7 +787,8 @@ class MainActivity : ComponentActivity() {
                     }
                     Button(onClick = {
                         val saved = JSONArray(prefs.getString("shifts_archive", "[]"))
-                        val exists = archiveHasDate(historicalDate)
+                        val exists = archiveHasDate(historicalDate) ||
+                            (prefs.getBoolean("active", false) && (prefs.getString("date", "") ?: "") == historicalDate)
                         if (!exists) {
                             val entry = JSONObject()
                                 .put("date", historicalDate).put("profile", historicalProfile)
