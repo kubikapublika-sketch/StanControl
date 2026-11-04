@@ -1391,7 +1391,7 @@ class MainActivity : ComponentActivity() {
         val top = 42f
         val dateHeight = 16f
         val headerHeight = 25f
-        val rowHeight = 16f
+        val rowHeight = 14.1f
         val headers = listOf("№", "Вид", "Коэф.\nфициент", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак\nВид", "Вес")
         paint.color = android.graphics.Color.BLACK
         paint.strokeWidth = 0.55f
@@ -1434,7 +1434,7 @@ class MainActivity : ComponentActivity() {
             val number = (i + 1).toString()
             canvas.drawText(number, left + (widths[0] - paint.measureText(number)) / 2f, yy + 11f, paint)
         }
-        val noteY = bodyTop + 45 * rowHeight + 92f
+        val noteY = bodyTop + 45 * rowHeight + 35f
         paint.textSize = 8f
         paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         canvas.drawText("Примечание: _________________________________________________", left, noteY, paint)
