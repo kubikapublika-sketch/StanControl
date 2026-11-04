@@ -636,7 +636,6 @@ class MainActivity : ComponentActivity() {
                         historicalWeight = ""; historicalGross = ""; historicalTare = ""
                         screen = "archive_new"
                     }, modifier = Modifier.fillMaxWidth()) { Text("Добавить старую смену") }
-                    syncShiftToProControl(date, packTotal, defectTotal)
                 val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
                     val allShifts = (0 until savedShifts.length()).map { savedShifts.getJSONObject(it) }
                     val years = allShifts.mapNotNull { it.optString("date").takeLast(4).toIntOrNull() }.distinct().sortedDescending()
@@ -1077,6 +1076,8 @@ class MainActivity : ComponentActivity() {
                     .put("packs", JSONArray().also { array -> packs.forEach { p -> array.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
                     .put("defects", JSONArray().also { array -> defects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                     .put("pallets", JSONArray().also { array -> pallets.forEach { p -> array.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
+                // Sync the completed shift before clearing StanControl's current data.
+                syncShiftToProControl(date, packTotal, defectTotal)
                 savedShifts.put(shift)
                 prefs.edit().putString("shifts_archive", savedShifts.toString())
                     .putString("archive", "Сохранено смен: " + savedShifts.length())
