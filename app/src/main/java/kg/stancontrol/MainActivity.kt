@@ -1334,7 +1334,7 @@ class MainActivity : ComponentActivity() {
         val usedEntryRows = maxOf(packs.size, defects.size)
         val summaryRowHeight = 25f
         val summaryHeight = 5f + summaryRowHeight + 6f
-        val palletHeaderHeight = 17f + 13f
+        val palletHeaderHeight = 17f + 13f + 13f
         val palletRowHeight = 13f
         val footerHeight = 7f + 34f + 39f + 14f
         val bottomLimit = 824f
@@ -1360,7 +1360,7 @@ class MainActivity : ComponentActivity() {
             )
             if (p != null) {
                 val idx = lengths.indexOf(kotlin.math.round(p.length).toInt())
-                if (idx >= 0) row[3 + idx] = fmt(p.weight)
+                if (idx >= 0) row[3 + idx] = "${fmt(p.coefficient)} / ${fmt(p.weight)}"
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
@@ -1402,10 +1402,13 @@ class MainActivity : ComponentActivity() {
                 cell(startX + c1 + c2 + c3, py, c4, 13f, p?.let { fmt(it.net) } ?: "", p != null, 6f, true)
                 py += 13f
             }
+            val netTotal = selected.sumOf { it.net }
+            cell(startX, py, c1 + c2 + c3, 13f, "Общий чистый вес", true, 6f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, fmt(netTotal), true, 6f, true)
         }
         palletSection("Поддоны прокат", rolling, left)
         palletSection("Поддоны резка", cuttingPallets, left + palletColWidth + palletColGap)
-        y += 17f + 13f + palletCount * 13f + 7f
+        y += 17f + 13f + palletCount * 13f + 13f + 7f
         cell(left, y, tableWidth, 34f, "ВСЕГО: ${fmt(total)} кг", true, 12f, true)
         y += 39f
         drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
