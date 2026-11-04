@@ -1409,8 +1409,6 @@ class MainActivity : ComponentActivity() {
         palletSection("Поддоны прокат", rolling, left)
         palletSection("Поддоны резка", cuttingPallets, left + palletColWidth + palletColGap)
         y += 17f + 13f + palletCount * 13f + 13f + 7f
-        cell(left, y, tableWidth, 34f, "ВСЕГО: ${fmt(total)} кг", true, 12f, true)
-        y += 39f
         drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
 
         pdf.finishPage(page)
