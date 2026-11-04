@@ -378,6 +378,7 @@ class MainActivity : ComponentActivity() {
                     }
                     OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
                     OutlinedButton(onClick = { screen = "settings" }, modifier = Modifier.fillMaxWidth()) { Text("Настройки") }
+                    OutlinedButton(onClick = { startActivity(Intent(this@MainActivity, ProControlActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("Про Контроль") }
                 }
                 "profile_select" -> {
                     Text("Выбрать профиль", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -635,7 +636,8 @@ class MainActivity : ComponentActivity() {
                         historicalWeight = ""; historicalGross = ""; historicalTare = ""
                         screen = "archive_new"
                     }, modifier = Modifier.fillMaxWidth()) { Text("Добавить старую смену") }
-                    val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
+                    syncShiftToProControl(date, packTotal, defectTotal)
+                val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
                     val allShifts = (0 until savedShifts.length()).map { savedShifts.getJSONObject(it) }
                     val years = allShifts.mapNotNull { it.optString("date").takeLast(4).toIntOrNull() }.distinct().sortedDescending()
                     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
@@ -1097,6 +1099,63 @@ class MainActivity : ComponentActivity() {
      * A shift belongs to one calendar date. When the device date advances,
      * archive the previous active shift and prepare an empty record for today.
      */
+
+    private fun syncShiftToProControl(displayDate: String, cleanKg: Double, scrapKg: Double) {
+        val isoDate = try {
+            val parsed = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).parse(displayDate)
+                ?: return
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(parsed)
+        } catch (_: Exception) { return }
+
+        val target = getSharedPreferences("procontrol", MODE_PRIVATE)
+        val cleanTonnes = cleanKg / 1000.0
+        val scrapTonnes = scrapKg / 1000.0
+        val saved = JSONObject().put("date", isoDate)
+            .put("clean", cleanTonnes).put("scrap", scrapTonnes).put("note", "")
+
+        val archive = try { JSONArray(target.getString("archive", "[]")) } catch (_: Exception) { JSONArray() }
+        for (i in 0 until archive.length()) {
+            val period = archive.optJSONObject(i) ?: continue
+            val records = period.optJSONArray("records") ?: JSONArray()
+            val recordIndex = (0 until records.length()).firstOrNull {
+                records.optJSONObject(it)?.optString("date") == isoDate
+            }
+            val start = period.optString("start")
+            val end = period.optString("end")
+            if (recordIndex != null || (start.isNotBlank() && end.isNotBlank() && isoDate >= start && isoDate <= end)) {
+                if (recordIndex == null) records.put(saved) else records.put(recordIndex, saved)
+                var cleanSum = 0.0
+                var scrapSum = 0.0
+                for (j in 0 until records.length()) {
+                    val record = records.optJSONObject(j) ?: continue
+                    cleanSum += record.optDouble("clean")
+                    scrapSum += record.optDouble("scrap")
+                }
+                period.put("records", records).put("clean", cleanSum).put("scrap", scrapSum)
+                archive.put(i, period)
+                target.edit().putString("archive", archive.toString()).apply()
+                return
+            }
+        }
+
+        val history = try { JSONArray(target.getString("historical_entries", "[]")) } catch (_: Exception) { JSONArray() }
+        val historicalIndex = (0 until history.length()).firstOrNull {
+            history.optJSONObject(it)?.optString("date") == isoDate
+        }
+        if (historicalIndex != null) {
+            history.put(historicalIndex, saved)
+            target.edit().putString("historical_entries", history.toString()).apply()
+            return
+        }
+
+        val entries = try { JSONArray(target.getString("entries", "[]")) } catch (_: Exception) { JSONArray() }
+        val existingIndex = (0 until entries.length()).firstOrNull {
+            entries.optJSONObject(it)?.optString("date") == isoDate
+        }
+        if (existingIndex == null) entries.put(saved) else entries.put(existingIndex, saved)
+        target.edit().putString("entries", entries.toString()).apply()
+    }
+
     private fun archiveStaleActiveShift(): Boolean {
         if (!prefs.getBoolean("active", false)) return false
         val shiftDate = prefs.getString("date", "") ?: ""
@@ -1114,6 +1173,7 @@ class MainActivity : ComponentActivity() {
             savedShifts.optJSONObject(it)?.optString("date") == shiftDate
         }
         if (!alreadyArchived) {
+            syncShiftToProControl(shiftDate, packTotal, defectTotal)
             savedShifts.put(JSONObject()
                 .put("date", shiftDate)
                 .put("profile", prefs.getString("profile", "Уголок 50") ?: "Уголок 50")
