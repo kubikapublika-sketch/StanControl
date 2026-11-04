@@ -22,6 +22,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Package full source project
+        run: zip -r StanControl-source.zip . -x '.git/*' '*/build/*' '.gradle/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StanControl-full-source
+          path: StanControl-source.zip
       - name: Build debug APK
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
