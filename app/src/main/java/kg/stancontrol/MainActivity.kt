@@ -378,7 +378,7 @@ class MainActivity : ComponentActivity() {
                     }
                     OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
                     OutlinedButton(onClick = { screen = "settings" }, modifier = Modifier.fillMaxWidth()) { Text("Настройки") }
-                    OutlinedButton(onClick = { startActivity(Intent(this@MainActivity, ProControlActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("CashControl") }
+                    OutlinedButton(onClick = { syncArchivedShiftsToProControl(); startActivity(Intent(this@MainActivity, ProControlActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("CashControl") }
                 }
                 "profile_select" -> {
                     Text("Выбрать профиль", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1100,6 +1100,20 @@ class MainActivity : ComponentActivity() {
      * A shift belongs to one calendar date. When the device date advances,
      * archive the previous active shift and prepare an empty record for today.
      */
+
+    private fun syncArchivedShiftsToProControl() {
+        val archived = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+        for (i in 0 until archived.length()) {
+            val shift = archived.optJSONObject(i) ?: continue
+            val shiftDate = shift.optString("date", "")
+            if (shiftDate.isBlank()) continue
+            syncShiftToProControl(
+                shiftDate,
+                shift.optDouble("packTotal", 0.0),
+                shift.optDouble("defectTotal", 0.0)
+            )
+        }
+    }
 
     private fun syncShiftToProControl(displayDate: String, cleanKg: Double, scrapKg: Double) {
         val isoDate = try {
