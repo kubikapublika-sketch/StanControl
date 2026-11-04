@@ -532,7 +532,25 @@ class MainActivity : ComponentActivity() {
                         else -> {
                             Text("Регистрация поддона", fontWeight = FontWeight.SemiBold)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("Прокат", "Резка").forEach { item -> FilterChip(palletType == item, { palletType = item }, label = { Text(item) }) }
+                                listOf("Прокат", "Резка").forEach { item ->
+                                    if (palletType == item) {
+                                        Button(
+                                            onClick = { palletType = item },
+                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { palletType = item },
+                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+                                        }
+                                    }
+                                }
                             }
                             OutlinedTextField(gross, { gross = it }, label = { Text("Брутто, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             OutlinedTextField(tare, { tare = it }, label = { Text("Тара, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -716,8 +734,26 @@ class MainActivity : ComponentActivity() {
                             }, modifier = Modifier.fillMaxWidth()) { Text("Добавить брак") }
                         }
                         else -> {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf("Прокат", "Резка").forEach { t -> FilterChip(historicalPalletType == t, { historicalPalletType = t }, label = { Text(t) }) }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("Прокат", "Резка").forEach { item ->
+                                    if (historicalPalletType == item) {
+                                        Button(
+                                            onClick = { historicalPalletType = item },
+                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { historicalPalletType = item },
+                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+                                        }
+                                    }
+                                }
                             }
                             OutlinedTextField(historicalGross, { historicalGross = it }, label = { Text("Брутто, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                             OutlinedTextField(historicalTare, { historicalTare = it }, label = { Text("Тара, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
