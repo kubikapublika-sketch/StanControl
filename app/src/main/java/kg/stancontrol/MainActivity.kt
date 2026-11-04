@@ -378,7 +378,7 @@ class MainActivity : ComponentActivity() {
                     }
                     OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Архив смен") }
                     OutlinedButton(onClick = { screen = "settings" }, modifier = Modifier.fillMaxWidth()) { Text("Настройки") }
-                    OutlinedButton(onClick = { startActivity(Intent(this@MainActivity, ProControlActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("Про Контроль") }
+                    OutlinedButton(onClick = { startActivity(Intent(this@MainActivity, ProControlActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("CashControl") }
                 }
                 "profile_select" -> {
                     Text("Выбрать профиль", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
