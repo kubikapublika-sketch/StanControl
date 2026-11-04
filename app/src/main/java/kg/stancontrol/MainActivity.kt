@@ -1311,7 +1311,6 @@ class MainActivity : ComponentActivity() {
 
         var y = 18f
         drawText("Дата: $date", left + 4f, y + 8f, 8f, true)
-        drawText("Вид профиля: $profile", left + 190f, y + 8f, 8f, true)
         y += 17f
 
         // Use the full printable page width for the main grid.
@@ -1333,7 +1332,8 @@ class MainActivity : ComponentActivity() {
         // Packs and defects are parallel lists: each starts at the first numbered row.
         val usedEntryRows = maxOf(packs.size, defects.size)
         val summaryRowHeight = 25f
-        val summaryHeight = 5f + summaryRowHeight + 6f
+        val palletGap = 28f
+        val summaryHeight = 5f + summaryRowHeight + palletGap
         val palletHeaderHeight = 17f + 13f + 13f
         val palletRowHeight = 13f
         val footerHeight = 7f + 34f + 39f + 14f
@@ -1352,7 +1352,7 @@ class MainActivity : ComponentActivity() {
             val defect = defects.getOrNull(i)
             val row = mutableListOf(
                 (i + 1).toString(),
-                profile.filter { it.isDigit() },
+                profile,
                 p?.let { fmt(it.coefficient) } ?: "",
                 "", "", "", "", "",
                 defect?.let { if (it.type == "Металлолом") "Брак" else it.type } ?: "",
@@ -1378,7 +1378,7 @@ class MainActivity : ComponentActivity() {
         cell(gridLeft, y, summaryPackWidth, summaryRowHeight, "Вес пачек: ${fmt(clean)} кг", true, 7.8f, true)
         cell(gridLeft + summaryPackWidth, y, summaryDefectWidth, summaryRowHeight, "Вес брака: ${fmt(bad)} кг", true, 7.8f, true)
         cell(gridLeft + summaryPackWidth + summaryDefectWidth, y, summaryPercentWidth, summaryRowHeight, "Процент брака: ${String.format(Locale.getDefault(), "%.2f", rejectPercent)}%", true, 7.8f, true)
-        y += summaryRowHeight + 6f
+        y += summaryRowHeight + palletGap
 
         val palletColGap = 8f
         val palletColWidth = (tableWidth - palletColGap) / 2f
