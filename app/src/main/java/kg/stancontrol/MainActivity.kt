@@ -1315,12 +1315,13 @@ class MainActivity : ComponentActivity() {
         y += 17f
 
         // Use the full printable page width for the main grid.
-        val widths = listOf(26f, 42f, 48f, 58f, 50f, 50f, 50f, 50f, 90f, 95f)
+        // Give the 6 m column more room; the long defect label is shortened to "Брак".
+        val widths = listOf(26f, 42f, 48f, 95f, 50f, 50f, 50f, 50f, 52f, 96f)
         val headers = listOf("№", "Вид", "Коэф.", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак\nВиды", "Вес, кг")
         val gridWidth = widths.sum()
         val gridLeft = left
         var x = gridLeft
-        headers.forEachIndexed { i, h -> cell(x, y, widths[i], 25f, h, true, 6.4f, true); x += widths[i] }
+        headers.forEachIndexed { i, h -> cell(x, y, widths[i], 25f, h, true, 7.1f, true); x += widths[i] }
         y += 25f
 
         val clean = packs.sumOf { it.weight }
@@ -1329,8 +1330,10 @@ class MainActivity : ComponentActivity() {
         val rolling = pallets.filter { it.type == "Прокат" }
         val cuttingPallets = pallets.filter { it.type == "Резка" }
         val palletCount = maxOf(rolling.size, cuttingPallets.size)
-        val usedEntryRows = packs.size + defects.size
-        val summaryHeight = 5f + 22f + 22f + 8f
+        // Packs and defects are parallel lists: each starts at the first numbered row.
+        val usedEntryRows = maxOf(packs.size, defects.size)
+        val summaryRowHeight = 25f
+        val summaryHeight = 5f + summaryRowHeight + 6f
         val palletHeaderHeight = 17f + 13f
         val palletRowHeight = 13f
         val footerHeight = 7f + 34f + 39f + 14f
@@ -1346,13 +1349,13 @@ class MainActivity : ComponentActivity() {
         val lengths = listOf(6, 5, 4, 3, 2)
         for (i in 0 until rowCount) {
             val p = packs.getOrNull(i)
-            val defect = if (i >= packs.size) defects.getOrNull(i - packs.size) else null
+            val defect = defects.getOrNull(i)
             val row = mutableListOf(
                 (i + 1).toString(),
                 profile.filter { it.isDigit() },
                 p?.let { fmt(it.coefficient) } ?: "",
                 "", "", "", "", "",
-                defect?.type ?: "",
+                defect?.let { if (it.type == "Металлолом") "Брак" else it.type } ?: "",
                 defect?.let { fmt(it.weight) } ?: ""
             )
             if (p != null) {
@@ -1361,17 +1364,21 @@ class MainActivity : ComponentActivity() {
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
-                cell(x, y, widths[j], actualRowHeight, value, true, 6.2f, true)
+                cell(x, y, widths[j], actualRowHeight, value, true, 7.8f, true)
                 x += widths[j]
             }
             y += actualRowHeight
         }
 
         y += 5f
-        cell(gridLeft, y, gridWidth, 22f, "Пачки: ${fmt(clean)} кг", true, 8.2f, true)
-        y += 22f
-        cell(gridLeft, y, gridWidth, 22f, "Брак: ${fmt(bad)} кг", true, 8.2f, true)
-        y += 30f
+        val rejectPercent = if (total > 0.0) bad * 100.0 / total else 0.0
+        val summaryPackWidth = gridWidth * 0.34f
+        val summaryDefectWidth = gridWidth * 0.33f
+        val summaryPercentWidth = gridWidth - summaryPackWidth - summaryDefectWidth
+        cell(gridLeft, y, summaryPackWidth, summaryRowHeight, "Вес пачек: ${fmt(clean)} кг", true, 7.8f, true)
+        cell(gridLeft + summaryPackWidth, y, summaryDefectWidth, summaryRowHeight, "Вес брака: ${fmt(bad)} кг", true, 7.8f, true)
+        cell(gridLeft + summaryPackWidth + summaryDefectWidth, y, summaryPercentWidth, summaryRowHeight, "Процент брака: ${String.format(Locale.getDefault(), "%.2f", rejectPercent)}%", true, 7.8f, true)
+        y += summaryRowHeight + 6f
 
         val palletColGap = 8f
         val palletColWidth = (tableWidth - palletColGap) / 2f
