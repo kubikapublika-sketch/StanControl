@@ -415,6 +415,7 @@ class MainActivity : ComponentActivity() {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = pdfTemplate == "classic", onClick = { pdfTemplate = "classic"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Норм PDF") })
                         FilterChip(selected = pdfTemplate == "grid", onClick = { pdfTemplate = "grid"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Чмошная хуйня") })
+                        FilterChip(selected = pdfTemplate == "original", onClick = { pdfTemplate = "original"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Ваще хуйня") })
                     }
                     Divider()
                     Text("Резервная копия", fontWeight = FontWeight.SemiBold)
@@ -1100,10 +1101,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
-        if ((prefs.getString("pdf_template", "classic") ?: "classic") == "grid") {
-            shareGridPdf(date, profile, packs, defects, pallets)
-        } else {
-            shareClassicPdf(date, profile, packs, defects, pallets)
+        when (prefs.getString("pdf_template", "classic") ?: "classic") {
+            "grid" -> shareGridPdf(date, profile, packs, defects, pallets)
+            "original" -> shareOriginalPdf(date, profile, packs, defects, pallets)
+            else -> shareClassicPdf(date, profile, packs, defects, pallets)
         }
     }
 
@@ -1248,12 +1249,7 @@ class MainActivity : ComponentActivity() {
         val left = 18f
         val right = 577f
         val tableWidth = right - left
-        fun drawText(value: String, x: Float, baseline: Float, size: Float = 6.5f, bold: Boolean = false) {
-            paint.color = android.graphics.Color.BLACK
-            paint.textSize = size
-            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-            canvas.drawText(value, x, baseline, paint)
-        }
+
         fun cell(x: Float, y: Float, w: Float, h: Float, value: String, bold: Boolean = false, size: Float = 6.5f, center: Boolean = false) {
             paint.color = android.graphics.Color.BLACK
             paint.style = Paint.Style.STROKE
@@ -1270,13 +1266,18 @@ class MainActivity : ComponentActivity() {
                 canvas.drawText(line, tx, firstBaseline - index * lineHeight, paint)
             }
         }
+        fun drawText(value: String, x: Float, baseline: Float, size: Float = 6.5f, bold: Boolean = false) {
+            paint.color = android.graphics.Color.BLACK
+            paint.textSize = size
+            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            canvas.drawText(value, x, baseline, paint)
+        }
+
         var y = 18f
         drawText("Дата: $date", left + 4f, y + 8f, 8f, true)
         drawText("Вид профиля: $profile", left + 190f, y + 8f, 8f, true)
         y += 17f
 
-        // Date is printed once above the grid. Keep 6 m unchanged and
-        // slightly narrow 5-2 m plus the defect column as requested.
         val widths = listOf(24f, 36f, 44f, 48f, 44f, 44f, 44f, 44f, 60f, 75f)
         val headers = listOf("№", "Вид", "Коэф.", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак\nВиды", "Вес, кг")
         val gridWidth = widths.sum()
@@ -1284,70 +1285,163 @@ class MainActivity : ComponentActivity() {
         var x = gridLeft
         headers.forEachIndexed { i, h -> cell(x, y, widths[i], 25f, h, true, 6.4f, true); x += widths[i] }
         y += 25f
+
+        val clean = packs.sumOf { it.weight }
+        val bad = defects.sumOf { it.weight }
+        val total = clean + bad
+        val rolling = pallets.filter { it.type == "Прокат" }
+        val cuttingPallets = pallets.filter { it.type == "Резка" }
+        val palletCount = maxOf(rolling.size, cuttingPallets.size)
+        val usedEntryRows = packs.size + defects.size
+        val summaryHeight = 5f + 22f + 22f + 8f
+        val palletHeaderHeight = 17f + 13f
+        val palletRowHeight = 13f
+        val footerHeight = 7f + 34f + 39f + 14f
+        val bottomLimit = 824f
+        val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
+        val packRowHeight = 11.2f
+        val maxRowsThatFit = (availableForPackRows / packRowHeight).toInt().coerceAtLeast(0)
+        val rowCount = maxOf(usedEntryRows, minOf(45, maxRowsThatFit))
+        val actualRowHeight = if (rowCount > 0 && y + summaryHeight + palletHeaderHeight + palletCount * palletRowHeight + footerHeight + rowCount * packRowHeight > bottomLimit) {
+            ((bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight) / rowCount).coerceAtLeast(7.0f)
+        } else packRowHeight
+
         val lengths = listOf(6, 5, 4, 3, 2)
-        for (i in 0 until 45) {
+        for (i in 0 until rowCount) {
             val p = packs.getOrNull(i)
-            val d = defects.getOrNull(i)
+            val defect = if (i >= packs.size) defects.getOrNull(i - packs.size) else null
             val row = mutableListOf(
                 (i + 1).toString(),
                 profile.filter { it.isDigit() },
                 p?.let { fmt(it.coefficient) } ?: "",
                 "", "", "", "", "",
-                d?.type ?: "",
-                d?.let { fmt(it.weight) } ?: ""
+                defect?.type ?: "",
+                defect?.let { fmt(it.weight) } ?: ""
             )
             if (p != null) {
                 val idx = lengths.indexOf(kotlin.math.round(p.length).toInt())
                 if (idx >= 0) row[3 + idx] = p.pieces.toString()
             }
             x = gridLeft
-            row.forEachIndexed { j, value -> cell(x, y, widths[j], 11.2f, value, false, 6.2f, true); x += widths[j] }
-            y += 11.2f
+            row.forEachIndexed { j, value ->
+                cell(x, y, widths[j], actualRowHeight, value, true, 6.2f, true)
+                x += widths[j]
+            }
+            y += actualRowHeight
         }
 
-        val clean = packs.sumOf { it.weight }
-        val bad = defects.sumOf { it.weight }
-        val total = clean + bad
         y += 5f
-        cell(gridLeft, y, gridWidth, 22f,
-            "Пачки: ${fmt(clean)} кг",
-            true, 8.2f, true)
+        cell(gridLeft, y, gridWidth, 22f, "Пачки: ${fmt(clean)} кг", true, 8.2f, true)
         y += 22f
-        cell(gridLeft, y, gridWidth, 22f,
-            "Брак: ${fmt(bad)} кг",
-            true, 8.2f, true)
-        y += 22f + 8f
+        cell(gridLeft, y, gridWidth, 22f, "Брак: ${fmt(bad)} кг", true, 8.2f, true)
+        y += 30f
+
         val palletColGap = 8f
         val palletColWidth = (tableWidth - palletColGap) / 2f
-        val palletRowH = 13f
-        fun palletSection(title: String, type: String, startX: Float) {
+        fun palletSection(title: String, selected: List<Pallet>, startX: Float) {
             cell(startX, y, palletColWidth, 17f, title, true, 7.2f, true)
             var py = y + 17f
-            cell(startX, py, 22f, palletRowH, "№", true, 6f, true)
-            cell(startX + 22f, py, 88f, palletRowH, "Общий вес", true, 6f, true)
-            cell(startX + 110f, py, 72f, palletRowH, "Тара", true, 6f, true)
-            cell(startX + 182f, py, palletColWidth - 182f, palletRowH, "Чистый вес", true, 6f, true)
-            py += palletRowH
-            val selected = pallets.filter { it.type == type }
-            for (i in 0 until 6) {
+            val c1 = 22f
+            val c2 = 88f
+            val c3 = 72f
+            val c4 = palletColWidth - c1 - c2 - c3
+            cell(startX, py, c1, 13f, "№", true, 6f, true)
+            cell(startX + c1, py, c2, 13f, "Общий вес", true, 6f, true)
+            cell(startX + c1 + c2, py, c3, 13f, "Тара", true, 6f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, "Чистый вес", true, 6f, true)
+            py += 13f
+            for (i in 0 until palletCount) {
                 val p = selected.getOrNull(i)
-                cell(startX, py, 22f, palletRowH, (i + 1).toString(), false, 6f, true)
-                cell(startX + 22f, py, 88f, palletRowH, p?.let { fmt(it.gross) } ?: "", false, 6f, true)
-                cell(startX + 110f, py, 72f, palletRowH, p?.let { fmt(it.tare) } ?: "", false, 6f, true)
-                cell(startX + 182f, py, palletColWidth - 182f, palletRowH, p?.let { fmt(it.net) } ?: "", false, 6f, true)
-                py += palletRowH
+                cell(startX, py, c1, 13f, if (p == null) "" else (i + 1).toString(), p != null, 6f, true)
+                cell(startX + c1, py, c2, 13f, p?.let { fmt(it.gross) } ?: "", p != null, 6f, true)
+                cell(startX + c1 + c2, py, c3, 13f, p?.let { fmt(it.tare) } ?: "", p != null, 6f, true)
+                cell(startX + c1 + c2 + c3, py, c4, 13f, p?.let { fmt(it.net) } ?: "", p != null, 6f, true)
+                py += 13f
             }
         }
-        palletSection("ПРОКАТ", "Прокат", left)
-        palletSection("ПОДДОНЫ РЕЗКА", "Резка", left + palletColWidth + palletColGap)
-        y += 17f + palletRowH * 7f
-        y += 7f
+        palletSection("Поддоны прокат", rolling, left)
+        palletSection("Поддоны резка", cuttingPallets, left + palletColWidth + palletColGap)
+        y += 17f + 13f + palletCount * 13f + 7f
         cell(left, y, tableWidth, 34f, "ВСЕГО: ${fmt(total)} кг", true, 12f, true)
         y += 39f
         drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
+
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
         val file = File(dir, "StanControl-$date-grid.pdf")
+        file.outputStream().use { pdf.writeTo(it) }
+        pdf.close()
+        val uri = FileProvider.getUriForFile(this, "kg.stancontrol.fileprovider", file)
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }, "Поделиться PDF"))
+    }
+
+    // Exact blank production sheet. Its original 45 numbered rows and layout stay independent of the other PDF templates.
+    private fun shareOriginalPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+        val pdf = PdfDocument()
+        val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
+        val canvas = page.canvas
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val left = 35f
+        val widths = listOf(64f, 36f, 52f, 77f, 50f, 50f, 50f, 50f, 42f, 54f)
+        val tableWidth = widths.sum()
+        val top = 42f
+        val dateHeight = 16f
+        val headerHeight = 25f
+        val rowHeight = 16f
+        val headers = listOf("№", "Вид", "Коэф.\nфициент", "6 м", "5 м", "4 м", "3 м", "2 м", "Брак\nВид", "Вес")
+        paint.color = android.graphics.Color.BLACK
+        paint.strokeWidth = 0.55f
+        paint.style = Paint.Style.STROKE
+        canvas.drawRect(left, top, left + widths[0], top + dateHeight, paint)
+        paint.style = Paint.Style.FILL
+        paint.textSize = 8f
+        paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+        canvas.drawText("Дата", left + 5f, top + 11f, paint)
+
+        var x = left + widths[0]
+        for (i in 1 until widths.size) {
+            paint.style = Paint.Style.STROKE
+            canvas.drawRect(x, top, x + widths[i], top + dateHeight + headerHeight, paint)
+            paint.style = Paint.Style.FILL
+            paint.textSize = 8f
+            paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+            val parts = headers[i].split("\n")
+            val lineHeight = 9f
+            val base = top + (dateHeight + headerHeight) / 2f + (parts.size - 1) * lineHeight / 2f + 2f
+            parts.forEachIndexed { index, part ->
+                val tx = x + (widths[i] - paint.measureText(part)) / 2f
+                canvas.drawText(part, tx, base - index * lineHeight, paint)
+            }
+            x += widths[i]
+        }
+        val bodyTop = top + dateHeight + headerHeight
+        for (i in 0 until 45) {
+            val yy = bodyTop + i * rowHeight
+            x = left
+            var xx = x
+            paint.style = Paint.Style.STROKE
+            for (w in widths) {
+                canvas.drawRect(xx, yy, xx + w, yy + rowHeight, paint)
+                xx += w
+            }
+            paint.style = Paint.Style.FILL
+            paint.textSize = 8f
+            paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            val number = (i + 1).toString()
+            canvas.drawText(number, left + (widths[0] - paint.measureText(number)) / 2f, yy + 11f, paint)
+        }
+        val noteY = bodyTop + 45 * rowHeight + 92f
+        paint.textSize = 8f
+        paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+        canvas.drawText("Примечание: _________________________________________________", left, noteY, paint)
+
+        pdf.finishPage(page)
+        val dir = File(cacheDir, "reports").apply { mkdirs() }
+        val file = File(dir, "StanControl-$date-original.pdf")
         file.outputStream().use { pdf.writeTo(it) }
         pdf.close()
         val uri = FileProvider.getUriForFile(this, "kg.stancontrol.fileprovider", file)
