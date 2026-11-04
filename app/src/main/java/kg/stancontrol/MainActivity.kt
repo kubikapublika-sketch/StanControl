@@ -263,6 +263,8 @@ class MainActivity : ComponentActivity() {
         var defectType by remember { mutableStateOf("Резка") }
         var palletType by remember { mutableStateOf("Прокат") }
         var showSettings by remember { mutableStateOf(false) }
+        var showHandoverDialog by remember { mutableStateOf(false) }
+        var handoverText by remember { mutableStateOf(prefs.getString("shift_handover_text", "") ?: "") }
         var pdfTemplate by remember { mutableStateOf(prefs.getString("pdf_template", "classic") ?: "classic") }
         var showPacks by remember { mutableStateOf(true) }
         var showDefects by remember { mutableStateOf(false) }
@@ -311,7 +313,9 @@ class MainActivity : ComponentActivity() {
         fun archiveHasDate(targetDate: String): Boolean {
             if (targetDate.isBlank()) return false
             val saved = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
-            return (0 until saved.length()).any { saved.optJSONObject(it)?.optString("date") == targetDate }
+            val alreadyArchived = (0 until saved.length()).any { saved.optJSONObject(it)?.optString("date") == targetDate }
+            val isActiveDate = prefs.getBoolean("active", false) && (prefs.getString("date", "") ?: "") == targetDate
+            return alreadyArchived || isActiveDate
         }
 
         fun saveAll() {
@@ -417,6 +421,12 @@ class MainActivity : ComponentActivity() {
                         FilterChip(selected = pdfTemplate == "grid", onClick = { pdfTemplate = "grid"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Чмошная хуйня") })
                         FilterChip(selected = pdfTemplate == "original", onClick = { pdfTemplate = "original"; prefs.edit().putString("pdf_template", pdfTemplate).apply() }, label = { Text("Ваще хуйня") })
                     }
+                    Divider()
+                    Text("Смену сдает", fontWeight = FontWeight.SemiBold)
+                    OutlinedButton(onClick = { handoverText = prefs.getString("shift_handover_text", "") ?: ""; showHandoverDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (handoverText.isBlank()) "Задать текст" else "Изменить текст")
+                    }
+                    if (handoverText.isNotBlank()) Text(handoverText, style = MaterialTheme.typography.bodySmall)
                     Divider()
                     Text("Резервная копия", fontWeight = FontWeight.SemiBold)
                     OutlinedButton(onClick = { shareBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться резервной копией") }
@@ -621,7 +631,12 @@ class MainActivity : ComponentActivity() {
                 }
                 "archive" -> {
                     Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    OutlinedButton(onClick = {
+                        historicalDate = today()
+                        historicalPacks.clear(); historicalDefects.clear(); historicalPallets.clear()
+                        historicalWeight = ""; historicalGross = ""; historicalTare = ""
+                        screen = "archive_new"
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Добавить старую смену") }
                     val savedShifts = JSONArray(prefs.getString("shifts_archive", "[]"))
                     val allShifts = (0 until savedShifts.length()).map { savedShifts.getJSONObject(it) }
                     val years = allShifts.mapNotNull { it.optString("date").takeLast(4).toIntOrNull() }.distinct().sortedDescending()
@@ -870,6 +885,37 @@ class MainActivity : ComponentActivity() {
                 }) { Text("Удалить") }
             },
             dismissButton = { TextButton(onClick = { deleteArchiveEntry = null }) { Text("Отмена") } }
+        )
+        if (showHandoverDialog) AlertDialog(
+            onDismissRequest = { showHandoverDialog = false },
+            title = { Text("Смену сдает") },
+            text = {
+                OutlinedTextField(
+                    value = handoverText,
+                    onValueChange = { handoverText = it },
+                    label = { Text("Текст для PDF") },
+                    placeholder = { Text("Смену сдал Иванов Иван Иванович") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    prefs.edit().putString("shift_handover_text", handoverText.trim()).apply()
+                    handoverText = handoverText.trim()
+                    showHandoverDialog = false
+                }) { Text("Сохранить") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        handoverText = ""
+                        prefs.edit().remove("shift_handover_text").apply()
+                        showHandoverDialog = false
+                    }) { Text("Очистить") }
+                    TextButton(onClick = { showHandoverDialog = false }) { Text("Отмена") }
+                }
+            }
         )
         if (showProfileManager) AlertDialog(
             onDismissRequest = { showProfileManager = false },
@@ -1263,6 +1309,7 @@ class MainActivity : ComponentActivity() {
         y += 3f
         line(y, 0xFF777777.toInt(), 1f)
         text("StanControl  ·  Сменный производственный отчёт", left, y + 13f, 7.5f, false, 0xFF666666.toInt())
+        drawHandoverSignature(canvas, paint)
 
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
@@ -1353,14 +1400,14 @@ class MainActivity : ComponentActivity() {
             val row = mutableListOf(
                 (i + 1).toString(),
                 profile,
-                p?.let { fmt(it.coefficient) } ?: "",
+                p?.let { fmtWhole(it.coefficient) } ?: "",
                 "", "", "", "", "",
                 defect?.let { if (it.type == "Металлолом") "Брак" else it.type } ?: "",
-                defect?.let { fmt(it.weight) } ?: ""
+                defect?.let { fmtWhole(it.weight) } ?: ""
             )
             if (p != null) {
                 val idx = lengths.indexOf(kotlin.math.round(p.length).toInt())
-                if (idx >= 0) row[3 + idx] = fmt(p.weight)
+                if (idx >= 0) row[3 + idx] = fmtWhole(p.weight)
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
@@ -1375,8 +1422,8 @@ class MainActivity : ComponentActivity() {
         val summaryPackWidth = gridWidth * 0.34f
         val summaryDefectWidth = gridWidth * 0.33f
         val summaryPercentWidth = gridWidth - summaryPackWidth - summaryDefectWidth
-        cell(gridLeft, y, summaryPackWidth, summaryRowHeight, "Вес пачек: ${fmt(clean)} кг", true, 7.8f, true)
-        cell(gridLeft + summaryPackWidth, y, summaryDefectWidth, summaryRowHeight, "Вес брака: ${fmt(bad)} кг", true, 7.8f, true)
+        cell(gridLeft, y, summaryPackWidth, summaryRowHeight, "Вес пачек: ${fmtWhole(clean)} кг", true, 7.8f, true)
+        cell(gridLeft + summaryPackWidth, y, summaryDefectWidth, summaryRowHeight, "Вес брака: ${fmtWhole(bad)} кг", true, 7.8f, true)
         cell(gridLeft + summaryPackWidth + summaryDefectWidth, y, summaryPercentWidth, summaryRowHeight, "Процент брака: ${String.format(Locale.getDefault(), "%.2f", rejectPercent)}%", true, 7.8f, true)
         y += summaryRowHeight + palletGap
 
@@ -1397,19 +1444,20 @@ class MainActivity : ComponentActivity() {
             for (i in 0 until palletCount) {
                 val p = selected.getOrNull(i)
                 cell(startX, py, c1, 13f, if (p == null) "" else (i + 1).toString(), p != null, 6f, true)
-                cell(startX + c1, py, c2, 13f, p?.let { fmt(it.gross) } ?: "", p != null, 6f, true)
-                cell(startX + c1 + c2, py, c3, 13f, p?.let { fmt(it.tare) } ?: "", p != null, 6f, true)
-                cell(startX + c1 + c2 + c3, py, c4, 13f, p?.let { fmt(it.net) } ?: "", p != null, 6f, true)
+                cell(startX + c1, py, c2, 13f, p?.let { fmtWhole(it.gross) } ?: "", p != null, 6f, true)
+                cell(startX + c1 + c2, py, c3, 13f, p?.let { fmtWhole(it.tare) } ?: "", p != null, 6f, true)
+                cell(startX + c1 + c2 + c3, py, c4, 13f, p?.let { fmtWhole(it.net) } ?: "", p != null, 6f, true)
                 py += 13f
             }
             val netTotal = selected.sumOf { it.net }
             cell(startX, py, c1 + c2 + c3, 13f, "Общий чистый вес", true, 6f, true)
-            cell(startX + c1 + c2 + c3, py, c4, 13f, fmt(netTotal), true, 6f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 6f, true)
         }
         palletSection("Поддоны прокат", rolling, left)
         palletSection("Поддоны резка", cuttingPallets, left + palletColWidth + palletColGap)
         y += 17f + 13f + palletCount * 13f + 13f + 7f
         drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
+        drawHandoverSignature(canvas, paint)
 
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
@@ -1483,6 +1531,7 @@ class MainActivity : ComponentActivity() {
         paint.textSize = 8f
         paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         canvas.drawText("Примечание: _________________________________________________", left, noteY, paint)
+        drawHandoverSignature(canvas, paint)
 
         pdf.finishPage(page)
         val dir = File(cacheDir, "reports").apply { mkdirs() }
@@ -1495,6 +1544,25 @@ class MainActivity : ComponentActivity() {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }, "Поделиться PDF"))
+    }
+
+    private fun fmtWhole(value: Double): String = String.format(Locale.getDefault(), "%.0f", value)
+
+    private fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint) {
+        val value = prefs.getString("shift_handover_text", "")?.trim().orEmpty()
+        if (value.isBlank()) return
+        paint.color = android.graphics.Color.BLACK
+        paint.textSize = 8f
+        paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+        val maxWidth = 540f
+        val shown = if (paint.measureText(value) <= maxWidth) value else {
+            var shortened = value
+            while (shortened.isNotEmpty() && paint.measureText("…" + shortened) > maxWidth) {
+                shortened = shortened.drop(1)
+            }
+            "…" + shortened
+        }
+        canvas.drawText(shown, 577f - paint.measureText(shown), 832f, paint)
     }
 
     private fun today(): String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
