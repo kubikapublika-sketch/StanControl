@@ -1360,7 +1360,7 @@ class MainActivity : ComponentActivity() {
             )
             if (p != null) {
                 val idx = lengths.indexOf(kotlin.math.round(p.length).toInt())
-                if (idx >= 0) row[3 + idx] = p.pieces.toString()
+                if (idx >= 0) row[3 + idx] = fmt(p.weight)
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
