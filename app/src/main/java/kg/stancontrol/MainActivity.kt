@@ -330,7 +330,7 @@ class MainActivity : ComponentActivity() {
         }
 
         fun addPack() {
-            val w = inputWeight.replace(',', '.').toDoubleOrNull() ?: return
+            val w = inputWeight.toIntOrNull()?.toDouble() ?: return
             val r = rows.toIntOrNull() ?: return
             val widthValue = width.toIntOrNull() ?: return
             val lengthValue = length.replace(',', '.').toDoubleOrNull() ?: return
@@ -470,7 +470,7 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        "${fmt(lp.weight)} кг",
+                                        "${fmtWeight(lp.weight)} кг",
                                         modifier = Modifier.weight(1.2f),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
@@ -611,7 +611,7 @@ class MainActivity : ComponentActivity() {
                                     TextButton(onClick = { deleteDefectIndex = index }, modifier = Modifier.width(32.dp).height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
                                 }
                             }
-                            if (showDefects) Text("Итого брак: " + fmt(defectTotal) + " кг", fontWeight = FontWeight.Bold)
+                            if (showDefects) Text("Итого брак: " + fmtWeight(defectTotal) + " кг", fontWeight = FontWeight.Bold)
                         }
                         item {
                             OutlinedButton(onClick = { showPallets = !showPallets }, modifier = Modifier.fillMaxWidth()) { Text("Поддоны (" + pallets.size + ")") }
@@ -624,7 +624,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    Text("Пачки: " + fmt(packTotal) + " кг    Брак: " + fmt(defectTotal) + " кг")
+                    Text("Пачки: " + fmtWeight(packTotal) + " кг    Брак: " + fmtWeight(defectTotal) + " кг")
                     OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                     OutlinedButton(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Вернуться к работе") }
                 }
@@ -682,8 +682,8 @@ class MainActivity : ComponentActivity() {
                                         if (shift.optString("status") == "Простой") {
                                             Text("Простой", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.SemiBold)
                                         }
-                                        Text("Пачек: " + (shift.optJSONArray("packs")?.length() ?: 0) + " · " + fmt(shift.optDouble("packTotal")) + " кг")
-                                        Text("Брак: " + fmt(shift.optDouble("defectTotal")) + " кг")
+                                        Text("Пачек: " + (shift.optJSONArray("packs")?.length() ?: 0) + " · " + fmtWeight(shift.optDouble("packTotal")) + " кг")
+                                        Text("Брак: " + fmtWeight(shift.optDouble("defectTotal")) + " кг")
                                         Button(onClick = { archiveShiftJson = shift.toString(); screen = "archive_detail" }, modifier = Modifier.fillMaxWidth()) { Text("Открыть полный бланк") }
                                         TextButton(onClick = { deleteArchiveEntry = shift.toString() }) { Text("Удалить эту смену из архива") }
                                     }
@@ -780,11 +780,11 @@ class MainActivity : ComponentActivity() {
                             }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
                         }
                     }
-                    Text("Добавлено: пачек ${historicalPacks.size} · ${fmt(historicalPacks.sumOf { it.weight })} кг | брак ${fmt(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text("Добавлено: пачек ${historicalPacks.size} · ${fmtWeight(historicalPacks.sumOf { it.weight })} кг | брак ${fmtWeight(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmtWeight(p.weight)} кг · К ${fmtCoefficient(p.coefficient)} · ${p.pieces} шт") }
-                        itemsIndexed(historicalDefects) { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmt(d.weight)} кг") }
-                        itemsIndexed(historicalPallets) { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmt(p.net)} кг") }
+                        itemsIndexed(historicalDefects) { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmtWeight(d.weight)} кг") }
+                        itemsIndexed(historicalPallets) { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmtWeight(p.net)} кг") }
                     }
                     Button(onClick = {
                         val saved = JSONArray(prefs.getString("shifts_archive", "[]"))
@@ -825,14 +825,14 @@ class MainActivity : ComponentActivity() {
                         item { Text("БРАК", fontWeight = FontWeight.Bold) }
                         items(ad.length()) { i ->
                             val item = ad.getJSONObject(i)
-                            Text(item.optString("t") + ": " + fmt(item.optDouble("w")) + " кг")
+                            Text(item.optString("t") + ": " + fmtWeight(item.optDouble("w")) + " кг")
                         }
                         item { Text("ПОДДОНЫ", fontWeight = FontWeight.Bold) }
                         items(aa.length()) { i ->
                             val item = aa.getJSONObject(i)
                             val grossValue = item.optDouble("g")
                             val tareValue = item.optDouble("a")
-                            Text(item.optString("t") + ": брутто " + fmt(grossValue) + " · тара " + fmt(tareValue) + " · нетто " + fmt(grossValue - tareValue) + " кг")
+                            Text(item.optString("t") + ": брутто " + fmtWeight(grossValue) + " · тара " + fmtWeight(tareValue) + " · нетто " + fmtWeight(grossValue - tareValue) + " кг")
                         }
                     }
                     OutlinedButton(onClick = {
@@ -1322,9 +1322,9 @@ class MainActivity : ComponentActivity() {
         val metricGap = 8f
         val metricWidth = (width - metricGap * 2f) / 3f
         val metrics = listOf(
-            "ЧИСТЫЙ ВЕС" to "${fmt(goodWeight)} кг",
-            "ВЕС БРАКА" to "${fmt(defectWeight)} кг",
-            "ОБЩИЙ ВЕС" to "${fmt(goodWeight + defectWeight)} кг"
+            "ЧИСТЫЙ ВЕС" to "${fmtWeight(goodWeight)} кг",
+            "ВЕС БРАКА" to "${fmtWeight(defectWeight)} кг",
+            "ОБЩИЙ ВЕС" to "${fmtWeight(goodWeight + defectWeight)} кг"
         )
         metrics.forEachIndexed { index, metric ->
             val x = left + index * (metricWidth + metricGap)
@@ -1353,9 +1353,9 @@ class MainActivity : ComponentActivity() {
         val scrap = defects.filter { it.type == "Металлолом" }.sumOf { it.weight }
         val defectXs = listOf(left + 10f, left + 220f)
         tableHeader(listOf("КАТЕГОРИЯ", "ВЕС, КГ"), defectXs)
-        tableRow(listOf("Резка", fmt(cutting)), defectXs)
-        tableRow(listOf("Металлолом", fmt(scrap)), defectXs)
-        total("ВСЕГО БРАК · ${fmt(percent)} % ОТ ОБЩЕГО ВЕСА", "${fmt(defectWeight)} кг")
+        tableRow(listOf("Резка", fmtWeight(cutting)), defectXs)
+        tableRow(listOf("Металлолом", fmtWeight(scrap)), defectXs)
+        total("ВСЕГО БРАК · ${fmt(percent)} % ОТ ОБЩЕГО ВЕСА", "${fmtWeight(defectWeight)} кг")
 
         val palletXs = listOf(left + 10f, left + 125f, left + 260f, left + 395f)
         val rolling = pallets.filter { it.type == "Прокат" }
@@ -1365,9 +1365,9 @@ class MainActivity : ComponentActivity() {
         if (rolling.isEmpty()) {
             tableRow(listOf("-", "0.0", "0.0", "0.0"), palletXs)
         } else {
-            rolling.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
+            rolling.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmtWeight(p.gross), fmtWeight(p.tare), fmt(p.net)), palletXs) }
         }
-        total("ИТОГО ПОДДОНЫ ПРОКАТ", "${fmt(rolling.sumOf { it.net })} кг")
+        total("ИТОГО ПОДДОНЫ ПРОКАТ", "${fmtWeight(rolling.sumOf { it.net })} кг")
 
         section("4. ПОДДОНЫ РЕЗКА")
         tableHeader(listOf("№", "БРУТТО, КГ", "ТАРА, КГ", "НЕТТО, КГ"), palletXs)
@@ -1376,8 +1376,8 @@ class MainActivity : ComponentActivity() {
         } else {
             cuttingPallets.forEachIndexed { i, p -> tableRow(listOf((i + 1).toString(), fmt(p.gross), fmt(p.tare), fmt(p.net)), palletXs) }
         }
-        total("ИТОГО ПОДДОНЫ РЕЗКА", "${fmt(cuttingPallets.sumOf { it.net })} кг")
-        total("ВСЕГО ПОДДОНЫ · НЕТТО", "${fmt(pallets.sumOf { it.net })} кг")
+        total("ИТОГО ПОДДОНЫ РЕЗКА", "${fmtWeight(cuttingPallets.sumOf { it.net })} кг")
+        total("ВСЕГО ПОДДОНЫ · НЕТТО", "${fmtWeight(pallets.sumOf { it.net })} кг")
 
         // A compact footer and border make the page read as a finished form.
         y += 3f
