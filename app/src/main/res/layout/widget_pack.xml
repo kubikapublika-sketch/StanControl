@@ -1,0 +1,31 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="10dp"
+    android:background="#F4F5F6">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="StanControl" android:textStyle="bold" android:textSize="18sp" android:textColor="#17212B"/>
+    <TextView android:id="@+id/widget_last_pack" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Последняя пачка" android:textStyle="bold" android:textSize="15sp" android:textColor="#17212B" android:paddingTop="7dp" android:paddingBottom="7dp"/>
+    <TextView android:id="@+id/widget_weight" android:layout_width="match_parent" android:layout_height="48dp"
+        android:text="Вес, кг" android:gravity="center_vertical|end" android:textSize="25sp" android:textStyle="bold"
+        android:textColor="#17212B" android:background="#FFFFFF" android:padding="8dp"/>
+    <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:columnCount="3" android:rowCount="4">
+        <Button android:id="@+id/key_7" android:text="7" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_8" android:text="8" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_9" android:text="9" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_4" android:text="4" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_5" android:text="5" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_6" android:text="6" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_1" android:text="1" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_2" android:text="2" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_3" android:text="3" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_del" android:text="⌫" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_0" android:text="0" style="@style/WidgetKey"/>
+        <Button android:id="@+id/key_clear" android:text="C" style="@style/WidgetKey"/>
+    </GridLayout>
+    <Button android:id="@+id/widget_add" android:layout_width="match_parent" android:layout_height="58dp"
+        android:text="ДОБАВИТЬ ПАЧКУ" android:textStyle="bold" android:textSize="16sp"
+        android:backgroundTint="#286B49" android:textColor="#FFFFFF"/>
+    <TextView android:id="@+id/widget_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="11sp" android:textColor="#52606D" android:paddingTop="4dp"/>
+</LinearLayout>
