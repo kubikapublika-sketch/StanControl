@@ -1460,8 +1460,10 @@ class MainActivity : ComponentActivity() {
         val footerHeight = 7f + 34f + 39f + 14f
         val bottomLimit = 824f
         val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
-        val packRowHeight = 11.2f
-        val maxRowsThatFit = (availableForPackRows / packRowHeight).toInt().coerceAtLeast(0)
+        // Larger, more readable production rows. Keep at least 35 numbered rows;
+        // add more when the recorded entries require them, fitting the page proportionally.
+        val packRowHeight = 15.5f
+        val maxRowsThatFit = (availableForPackRows / packRowHeight).toInt().coerceAtLeast(35)
         val rowCount = maxOf(usedEntryRows, minOf(45, maxRowsThatFit))
         val actualRowHeight = if (rowCount > 0 && y + summaryHeight + palletHeaderHeight + palletCount * palletRowHeight + footerHeight + rowCount * packRowHeight > bottomLimit) {
             ((bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight) / rowCount).coerceAtLeast(7.0f)
@@ -1485,7 +1487,7 @@ class MainActivity : ComponentActivity() {
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
-                cell(x, y, widths[j], actualRowHeight, value, true, 7.8f, true)
+                cell(x, y, widths[j], actualRowHeight, value, true, 9.2f, true)
                 x += widths[j]
             }
             y += actualRowHeight
