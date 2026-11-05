@@ -1487,7 +1487,7 @@ class MainActivity : ComponentActivity() {
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
-                cell(x, y, widths[j], actualRowHeight, value, true, 9.0f, true)
+                cell(x, y, widths[j], actualRowHeight, value, true, 9.5f, true)
                 x += widths[j]
             }
             y += actualRowHeight
@@ -1519,15 +1519,15 @@ class MainActivity : ComponentActivity() {
             py += 13f
             for (i in 0 until palletCount) {
                 val p = selected.getOrNull(i)
-                cell(startX, py, c1, 13f, if (p == null) "" else (i + 1).toString(), p != null, 6f, true)
-                cell(startX + c1, py, c2, 13f, p?.let { fmtWhole(it.gross) } ?: "", p != null, 6f, true)
-                cell(startX + c1 + c2, py, c3, 13f, p?.let { fmtWhole(it.tare) } ?: "", p != null, 6f, true)
-                cell(startX + c1 + c2 + c3, py, c4, 13f, p?.let { fmtWhole(it.net) } ?: "", p != null, 6f, true)
+                cell(startX, py, c1, 13f, if (p == null) "" else (i + 1).toString(), p != null, 7.2f, true)
+                cell(startX + c1, py, c2, 13f, p?.let { fmtWhole(it.gross) } ?: "", p != null, 7.2f, true)
+                cell(startX + c1 + c2, py, c3, 13f, p?.let { fmtWhole(it.tare) } ?: "", p != null, 7.2f, true)
+                cell(startX + c1 + c2 + c3, py, c4, 13f, p?.let { fmtWhole(it.net) } ?: "", p != null, 7.2f, true)
                 py += 13f
             }
             val netTotal = selected.sumOf { it.net }
             cell(startX, py, c1 + c2 + c3, 13f, "Общий чистый вес", true, 6f, true)
-            cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 6f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 7.2f, true)
         }
         palletSection("Поддоны прокат", rolling, left)
         palletSection("Поддоны резка", cuttingPallets, left + palletColWidth + palletColGap)
