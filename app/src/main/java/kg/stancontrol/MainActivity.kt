@@ -1460,13 +1460,11 @@ class MainActivity : ComponentActivity() {
         val footerHeight = 7f + 34f + 39f + 14f
         val bottomLimit = 824f
         val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
-        // Larger, more readable production rows. Keep at least 35 numbered rows;
-        // add more when the recorded entries require them, fitting the page proportionally.
-        val packRowHeight = 15.5f
-        val maxRowsThatFit = (availableForPackRows / packRowHeight).toInt().coerceAtLeast(35)
-        val rowCount = maxOf(usedEntryRows, minOf(45, maxRowsThatFit))
-        val actualRowHeight = if (rowCount > 0 && y + summaryHeight + palletHeaderHeight + palletCount * palletRowHeight + footerHeight + rowCount * packRowHeight > bottomLimit) {
-            ((bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight) / rowCount).coerceAtLeast(7.0f)
+        // Keep the familiar fixed 45-row layout and use some lower-page whitespace.
+        val packRowHeight = 12.4f
+        val rowCount = maxOf(45, usedEntryRows)
+        val actualRowHeight = if (rowCount > 0 && y + summaryHeight + palletHeaderHeight + palletCount * palletRowHeight + footerHeight + rowCount * packRowHeight > bottomLimit + 56.7f) {
+            ((bottomLimit + 56.7f - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight) / rowCount).coerceAtLeast(7.0f)
         } else packRowHeight
 
         val lengths = listOf(6, 5, 4, 3, 2)
@@ -1487,7 +1485,7 @@ class MainActivity : ComponentActivity() {
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
-                cell(x, y, widths[j], actualRowHeight, value, true, 9.2f, true)
+                cell(x, y, widths[j], actualRowHeight, value, true, 8.6f, true)
                 x += widths[j]
             }
             y += actualRowHeight
