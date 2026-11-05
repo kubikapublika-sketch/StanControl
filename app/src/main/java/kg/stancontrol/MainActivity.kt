@@ -1460,11 +1460,14 @@ class MainActivity : ComponentActivity() {
         val footerHeight = 7f + 34f + 39f + 14f
         val bottomLimit = 824f
         val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
-        // Keep the familiar fixed 45-row layout and use some lower-page whitespace.
-        val packRowHeight = 12.4f
-        val rowCount = maxOf(45, usedEntryRows)
-        val actualRowHeight = if (rowCount > 0 && y + summaryHeight + palletHeaderHeight + palletCount * palletRowHeight + footerHeight + rowCount * packRowHeight > bottomLimit + 56.7f) {
-            ((bottomLimit + 56.7f - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight) / rowCount).coerceAtLeast(7.0f)
+        // Use 35-45 numbered rows depending on available space; never fewer than 35.
+        // If there are more recorded entries, expand the row count to include them all.
+        val packRowHeight = 15.5f
+        val totalRowsSpace = bottomLimit + 56.7f - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
+        val rowsThatFit = (totalRowsSpace / packRowHeight).toInt().coerceIn(35, 45)
+        val rowCount = maxOf(usedEntryRows, rowsThatFit)
+        val actualRowHeight = if (rowCount > 0) {
+            (totalRowsSpace / rowCount).coerceAtMost(packRowHeight).coerceAtLeast(7.0f)
         } else packRowHeight
 
         val lengths = listOf(6, 5, 4, 3, 2)
