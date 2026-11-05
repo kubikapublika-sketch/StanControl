@@ -336,7 +336,7 @@ class MainActivity : ComponentActivity() {
             val lengthValue = length.replace(',', '.').toDoubleOrNull() ?: return
             if (w <= 0 || r <= 0 || widthValue <= 0 || lengthValue <= 0) return
             val count = (widthValue * 2 - 1) * r - (widthValue - 1)
-            val coefficient = round(w / (count * lengthValue))
+            val coefficient = round(w / (count * lengthValue) * 10.0) / 10.0
             packs.add(Pack(w, r, count, coefficient, widthValue, lengthValue))
             inputWeight = ""
             saveAll()
@@ -478,7 +478,7 @@ class MainActivity : ComponentActivity() {
                                         softWrap = false
                                     )
                                     Text(
-                                        "К ${fmtWhole(lp.coefficient)}",
+                                        "К ${fmtCoefficient(lp.coefficient)}",
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
@@ -583,7 +583,7 @@ class MainActivity : ComponentActivity() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        (index + 1).toString() + ") " + fmt(p.weight) + " кг | " + fmtWhole(p.coefficient) + " | " + p.pieces + " шт",
+                                        (index + 1).toString() + ") " + fmtWeight(p.weight) + " кг | " + fmtCoefficient(p.coefficient) + " | " + p.pieces + " шт",
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1,
@@ -732,7 +732,7 @@ class MainActivity : ComponentActivity() {
                                 val le = historicalLength.replace(',', '.').toDoubleOrNull()
                                 if (w != null && r != null && wi != null && le != null && w > 0 && r > 0 && wi > 0 && le > 0) {
                                     val n = (wi * 2 - 1) * r - (wi - 1)
-                                    historicalPacks.add(Pack(w, r, n, round(w / (n * le)), wi, le))
+                                    historicalPacks.add(Pack(w, r, n, round(w / (n * le) * 10.0) / 10.0, wi, le))
                                     historicalWeight = ""
                                 }
                             }, modifier = Modifier.fillMaxWidth()) { Text("Добавить пачку") }
@@ -820,7 +820,7 @@ class MainActivity : ComponentActivity() {
                         item { Text("ПАЧКИ", fontWeight = FontWeight.Bold) }
                         items(ap.length()) { i ->
                             val item = ap.getJSONObject(i)
-                            Text("${i + 1}. ${fmt(item.optDouble("w"))} кг | К ${fmtWhole(item.optDouble("k"))} | ${item.optInt("n")} шт | ${item.optInt("r")} рядов")
+                            Text("${i + 1}. ${fmtWeight(item.optDouble("w"))} кг | К ${fmtCoefficient(item.optDouble("k"))} | ${item.optInt("n")} шт | ${item.optInt("r")} рядов")
                         }
                         item { Text("БРАК", fontWeight = FontWeight.Bold) }
                         items(ad.length()) { i ->
@@ -1029,7 +1029,7 @@ class MainActivity : ComponentActivity() {
             val lengthValue = packs[editPack].length
             if (w != null && r != null && widthValue != null && w > 0 && r > 0 && widthValue > 0) {
                 val count = (widthValue * 2 - 1) * r - (widthValue - 1)
-                packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue)), widthValue, lengthValue)
+                packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue) * 10.0) / 10.0, widthValue, lengthValue)
                 saveAll()
             }
             editPack = -1
@@ -1343,7 +1343,7 @@ class MainActivity : ComponentActivity() {
             tableRow(listOf("-", "0.0", "0.0", "0"), packXs)
         } else {
             packs.forEachIndexed { i, p ->
-                tableRow(listOf((i + 1).toString(), fmtWhole(p.coefficient), fmt(p.weight), p.pieces.toString()), packXs)
+                tableRow(listOf((i + 1).toString(), fmtCoefficient(p.coefficient), fmtWeight(p.weight), p.pieces.toString()), packXs)
             }
         }
         total("ИТОГО ГОТОВАЯ ПРОДУКЦИЯ", "${fmt(packs.sumOf { it.weight })} кг     ${packs.sumOf { it.pieces }} шт")
@@ -1476,14 +1476,14 @@ class MainActivity : ComponentActivity() {
             val row = mutableListOf(
                 (i + 1).toString(),
                 profile,
-                p?.let { fmtWhole(it.coefficient) } ?: "",
+                p?.let { fmtCoefficient(it.coefficient) } ?: "",
                 "", "", "", "", "",
                 defect?.let { if (it.type == "Металлолом") "Брак" else it.type } ?: "",
                 defect?.let { fmtWhole(it.weight) } ?: ""
             )
             if (p != null) {
                 val idx = lengths.indexOf(kotlin.math.round(p.length).toInt())
-                if (idx >= 0) row[3 + idx] = fmtWhole(p.weight)
+                if (idx >= 0) row[3 + idx] = fmtWeight(p.weight)
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
@@ -1643,9 +1643,11 @@ class MainActivity : ComponentActivity() {
 
     private fun today(): String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
     private fun fmt(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
+    private fun fmtWeight(value: Double): String = if (kotlin.math.abs(value - round(value)) < 0.000001) String.format(Locale.getDefault(), "%.0f", value) else fmt(value)
+    private fun fmtCoefficient(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
     private fun readPacks(): List<Pack> {
         val a = JSONArray(prefs.getString("packs", "[]"))
-        return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), kotlin.math.round(o.getDouble("k")), o.optInt("width", 5), o.optDouble("length", 6.0)) }
+        return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), round(o.getDouble("w") / (o.getInt("n") * o.optDouble("length", 6.0)) * 10.0) / 10.0, o.optInt("width", 5), o.optDouble("length", 6.0)) }
     }
     private fun readDefects(): List<Defect> {
         val a = JSONArray(prefs.getString("defects", "[]"))
