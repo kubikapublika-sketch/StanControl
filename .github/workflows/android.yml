@@ -24,6 +24,20 @@ jobs:
           gradle-version: '8.9'
       - name: Build debug APK
         run: gradle assembleDebug
+      - name: Sign APK with permanent StanControl key
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > stancontrol-release.jks
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks stancontrol-release.jks --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" --key-pass "pass:$KEY_PASSWORD" --out app-signed.apk "$APK"
+          mv app-signed.apk "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          rm -f stancontrol-release.jks
       - name: Package source project
         run: zip -r StanControl-source.zip . -x '.git/*' 'app/build/*' '.gradle/*'
       - uses: actions/upload-artifact@v4
