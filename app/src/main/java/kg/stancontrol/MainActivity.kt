@@ -1414,7 +1414,7 @@ class MainActivity : ComponentActivity() {
             canvas.drawRect(x, y, x + w, y + h, paint)
             paint.style = Paint.Style.FILL
             paint.textSize = size
-            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.NORMAL) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
             val lines = value.split("\n")
             val lineHeight = size + 1f
             val firstBaseline = y + h / 2f + (lines.size - 1) * lineHeight / 2f + size / 3f
@@ -1426,7 +1426,7 @@ class MainActivity : ComponentActivity() {
         fun drawText(value: String, x: Float, baseline: Float, size: Float = 6.5f, bold: Boolean = false) {
             paint.color = android.graphics.Color.BLACK
             paint.textSize = size
-            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            paint.typeface = if (bold) android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.NORMAL) else android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
             canvas.drawText(value, x, baseline, paint)
         }
 
@@ -1485,7 +1485,7 @@ class MainActivity : ComponentActivity() {
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
-                cell(x, y, widths[j], actualRowHeight, value, true, 8.6f, true)
+                cell(x, y, widths[j], actualRowHeight, value, true, 9.0f, true)
                 x += widths[j]
             }
             y += actualRowHeight
