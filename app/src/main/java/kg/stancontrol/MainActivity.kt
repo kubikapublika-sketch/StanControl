@@ -1460,12 +1460,11 @@ class MainActivity : ComponentActivity() {
         val footerHeight = 7f + 34f + 39f + 14f
         val bottomLimit = 824f
         val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
-        // Use 35-45 numbered rows depending on available space; never fewer than 35.
-        // If there are more recorded entries, expand the row count to include them all.
+        // Production never exceeds 30 entries; keep at least 35 numbered rows on the sheet.
+        // Use the reclaimed lower margin to give all 35 rows a taller, fixed height.
         val packRowHeight = 15.5f
         val totalRowsSpace = bottomLimit + 56.7f - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
-        val rowsThatFit = (totalRowsSpace / packRowHeight).toInt().coerceIn(35, 45)
-        val rowCount = maxOf(usedEntryRows, rowsThatFit)
+        val rowCount = maxOf(35, usedEntryRows)
         val actualRowHeight = if (rowCount > 0) {
             (totalRowsSpace / rowCount).coerceAtMost(packRowHeight).coerceAtLeast(7.0f)
         } else packRowHeight
