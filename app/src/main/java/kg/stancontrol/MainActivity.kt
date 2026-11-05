@@ -1643,7 +1643,7 @@ class MainActivity : ComponentActivity() {
     private fun fmt(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
     private fun readPacks(): List<Pack> {
         val a = JSONArray(prefs.getString("packs", "[]"))
-        return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), o.getDouble("k"), o.optInt("width", 5), o.optDouble("length", 6.0)) }
+        return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), kotlin.math.round(o.getDouble("k")), o.optInt("width", 5), o.optDouble("length", 6.0)) }
     }
     private fun readDefects(): List<Defect> {
         val a = JSONArray(prefs.getString("defects", "[]"))
