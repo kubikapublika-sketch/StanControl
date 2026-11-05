@@ -336,7 +336,7 @@ class MainActivity : ComponentActivity() {
             val lengthValue = length.replace(',', '.').toDoubleOrNull() ?: return
             if (w <= 0 || r <= 0 || widthValue <= 0 || lengthValue <= 0) return
             val count = (widthValue * 2 - 1) * r - (widthValue - 1)
-            val coefficient = round(w / (count * lengthValue) * 10.0) / 10.0
+            val coefficient = round(w / (count * lengthValue))
             packs.add(Pack(w, r, count, coefficient, widthValue, lengthValue))
             inputWeight = ""
             saveAll()
@@ -478,7 +478,7 @@ class MainActivity : ComponentActivity() {
                                         softWrap = false
                                     )
                                     Text(
-                                        "К ${fmt(lp.coefficient)}",
+                                        "К ${fmtWhole(lp.coefficient)}",
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
@@ -583,7 +583,7 @@ class MainActivity : ComponentActivity() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        (index + 1).toString() + ") " + fmt(p.weight) + " кг | " + fmt(p.coefficient) + " | " + p.pieces + " шт",
+                                        (index + 1).toString() + ") " + fmt(p.weight) + " кг | " + fmtWhole(p.coefficient) + " | " + p.pieces + " шт",
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1,
@@ -732,7 +732,7 @@ class MainActivity : ComponentActivity() {
                                 val le = historicalLength.replace(',', '.').toDoubleOrNull()
                                 if (w != null && r != null && wi != null && le != null && w > 0 && r > 0 && wi > 0 && le > 0) {
                                     val n = (wi * 2 - 1) * r - (wi - 1)
-                                    historicalPacks.add(Pack(w, r, n, round(w / (n * le) * 10.0) / 10.0, wi, le))
+                                    historicalPacks.add(Pack(w, r, n, round(w / (n * le)), wi, le))
                                     historicalWeight = ""
                                 }
                             }, modifier = Modifier.fillMaxWidth()) { Text("Добавить пачку") }
@@ -782,7 +782,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Text("Добавлено: пачек ${historicalPacks.size} · ${fmt(historicalPacks.sumOf { it.weight })} кг | брак ${fmt(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmt(p.weight)} кг · К ${fmt(p.coefficient)} · ${p.pieces} шт") }
+                        itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmt(p.weight)} кг · К ${fmtWhole(p.coefficient)} · ${p.pieces} шт") }
                         itemsIndexed(historicalDefects) { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmt(d.weight)} кг") }
                         itemsIndexed(historicalPallets) { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmt(p.net)} кг") }
                     }
@@ -1029,7 +1029,7 @@ class MainActivity : ComponentActivity() {
             val lengthValue = packs[editPack].length
             if (w != null && r != null && widthValue != null && w > 0 && r > 0 && widthValue > 0) {
                 val count = (widthValue * 2 - 1) * r - (widthValue - 1)
-                packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue) * 10.0) / 10.0, widthValue, lengthValue)
+                packs[editPack] = Pack(w, r, count, round(w / (count * lengthValue)), widthValue, lengthValue)
                 saveAll()
             }
             editPack = -1
@@ -1343,7 +1343,7 @@ class MainActivity : ComponentActivity() {
             tableRow(listOf("-", "0.0", "0.0", "0"), packXs)
         } else {
             packs.forEachIndexed { i, p ->
-                tableRow(listOf((i + 1).toString(), fmt(p.coefficient), fmt(p.weight), p.pieces.toString()), packXs)
+                tableRow(listOf((i + 1).toString(), fmtWhole(p.coefficient), fmt(p.weight), p.pieces.toString()), packXs)
             }
         }
         total("ИТОГО ГОТОВАЯ ПРОДУКЦИЯ", "${fmt(packs.sumOf { it.weight })} кг     ${packs.sumOf { it.pieces }} шт")
