@@ -820,7 +820,7 @@ class MainActivity : ComponentActivity() {
                         item { Text("ПАЧКИ", fontWeight = FontWeight.Bold) }
                         items(ap.length()) { i ->
                             val item = ap.getJSONObject(i)
-                            Text("${i + 1}. ${fmt(item.optDouble("w"))} кг | К ${fmt(item.optDouble("k"))} | ${item.optInt("n")} шт | ${item.optInt("r")} рядов")
+                            Text("${i + 1}. ${fmt(item.optDouble("w"))} кг | К ${fmtWhole(item.optDouble("k"))} | ${item.optInt("n")} шт | ${item.optInt("r")} рядов")
                         }
                         item { Text("БРАК", fontWeight = FontWeight.Bold) }
                         items(ad.length()) { i ->
