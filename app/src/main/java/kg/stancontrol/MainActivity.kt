@@ -445,7 +445,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Card(Modifier.fillMaxWidth()) {
                         Text(
-                            "Пачки ${packs.size} · ${fmt(packTotal)} кг   |   Брак ${defects.size} · ${fmt(defectTotal)} кг   |   ${fmt(rejectPercent)}%",
+                            "Пачки ${packs.size} · ${fmtWeight(packTotal)} кг   |   Брак ${defects.size} · ${fmtWeight(defectTotal)} кг   |   ${fmt(rejectPercent)}%",
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 8.dp),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
@@ -606,7 +606,7 @@ class MainActivity : ComponentActivity() {
                             OutlinedButton(onClick = { showDefects = !showDefects }, modifier = Modifier.fillMaxWidth()) { Text("Брак (" + defects.size + ")") }
                             if (showDefects) defects.forEachIndexed { index, d ->
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(d.type + ": " + fmt(d.weight) + " кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                    Text(d.type + ": " + fmtWeight(d.weight) + " кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                                     TextButton(onClick = { editDefect = index; editWeight = d.weight.toString(); editType = d.type }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Изменить", fontSize = 12.sp, maxLines = 1) }
                                     TextButton(onClick = { deleteDefectIndex = index }, modifier = Modifier.width(32.dp).height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
                                 }
@@ -617,7 +617,7 @@ class MainActivity : ComponentActivity() {
                             OutlinedButton(onClick = { showPallets = !showPallets }, modifier = Modifier.fillMaxWidth()) { Text("Поддоны (" + pallets.size + ")") }
                             if (showPallets) pallets.forEachIndexed { index, p ->
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(p.type + ": " + fmt(p.gross) + " - " + fmt(p.tare) + " = " + fmt(p.net) + " кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                    Text(p.type + ": " + fmtWeight(p.gross) + " - " + fmtWeight(p.tare) + " = " + fmtWeight(p.net) + " кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                                     TextButton(onClick = { editPallet = index; editGross = p.gross.toString(); editTare = p.tare.toString(); editType = p.type }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Изменить", fontSize = 12.sp, maxLines = 1) }
                                     TextButton(onClick = { deletePalletIndex = index }, modifier = Modifier.width(32.dp).height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
                                 }
@@ -782,7 +782,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Text("Добавлено: пачек ${historicalPacks.size} · ${fmt(historicalPacks.sumOf { it.weight })} кг | брак ${fmt(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmt(p.weight)} кг · К ${fmtWhole(p.coefficient)} · ${p.pieces} шт") }
+                        itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmtWeight(p.weight)} кг · К ${fmtCoefficient(p.coefficient)} · ${p.pieces} шт") }
                         itemsIndexed(historicalDefects) { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmt(d.weight)} кг") }
                         itemsIndexed(historicalPallets) { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmt(p.net)} кг") }
                     }
@@ -1346,7 +1346,7 @@ class MainActivity : ComponentActivity() {
                 tableRow(listOf((i + 1).toString(), fmtCoefficient(p.coefficient), fmtWeight(p.weight), p.pieces.toString()), packXs)
             }
         }
-        total("ИТОГО ГОТОВАЯ ПРОДУКЦИЯ", "${fmt(packs.sumOf { it.weight })} кг     ${packs.sumOf { it.pieces }} шт")
+        total("ИТОГО ГОТОВАЯ ПРОДУКЦИЯ", "${fmtWeight(packs.sumOf { it.weight })} кг     ${packs.sumOf { it.pieces }} шт")
 
         section("2. БРАК")
         val cutting = defects.filter { it.type == "Резка" }.sumOf { it.weight }
