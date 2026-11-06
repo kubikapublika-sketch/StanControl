@@ -1410,7 +1410,10 @@ class MainActivity : ComponentActivity() {
             }
             x = gridLeft
             row.forEachIndexed { j, value ->
-                cell(x, y, widths[j], actualRowHeight, value, true, 7.8f, true)
+                // Увеличиваем только цифры коэффициента и веса в верхней таблице.
+                // Строки, размеры ячеек и нижний блок поддонов остаются без изменений.
+                val numericSize = if (j in 2..7 || j == 9) 9.6f else 7.8f
+                cell(x, y, widths[j], actualRowHeight, value, true, numericSize, true)
                 x += widths[j]
             }
             y += actualRowHeight
