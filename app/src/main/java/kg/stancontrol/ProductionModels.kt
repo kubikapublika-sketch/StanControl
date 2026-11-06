@@ -27,3 +27,15 @@ data class Pallet(
     val net: Double
         get() = gross - tare
 }
+
+/**
+ * A production-control record stored in the production calendar and archive.
+ *
+ * Values are expressed in tonnes, matching the existing persistence format.
+ */
+internal data class ProductionEntry(
+    val date: String,
+    val clean: Double,
+    val scrap: Double,
+    val note: String
+)
