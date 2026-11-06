@@ -34,6 +34,7 @@ import java.util.Locale
 
 class ProControlActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("procontrol", MODE_PRIVATE) }
+    private val repository by lazy { ProductionControlRepository(prefs) }
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     private val displayDate = SimpleDateFormat("dd.MM.yyyy", Locale("ru"))
     private var cleanRate = 80.0
@@ -53,7 +54,7 @@ class ProControlActivity : Activity() {
             prefs.edit().putString("period_start", it).apply()
         }
         archiveEditing = prefs.getBoolean("archive_editing", false)
-        loadEntries()
+        entries = repository.loadEntries()
         val todayForMigration = dateFormat.format(Date())
         val earliestCurrentEntry = entries.minOfOrNull { it.date }
         if (earliestCurrentEntry != null && earliestCurrentEntry < periodStart) {
@@ -61,26 +62,6 @@ class ProControlActivity : Activity() {
             prefs.edit().putString("period_start", periodStart).apply()
         }
         render()
-    }
-
-    private fun loadEntries() {
-        entries.clear()
-        try {
-            val array = JSONArray(prefs.getString("entries", "[]") ?: "[]")
-            for (i in 0 until array.length()) {
-                val o = array.getJSONObject(i)
-                entries.add(ProductionEntry(o.getString("date"), o.optDouble("clean"), o.optDouble("scrap"), o.optString("note")))
-            }
-        } catch (_: Exception) { }
-        entries.sortByDescending { it.date }
-    }
-
-    private fun saveEntries() {
-        val array = JSONArray()
-        entries.forEach { e ->
-            array.put(JSONObject().put("date", e.date).put("clean", e.clean).put("scrap", e.scrap).put("note", e.note))
-        }
-        prefs.edit().putString("entries", array.toString()).apply()
     }
 
     private fun render() {
@@ -447,7 +428,7 @@ class ProControlActivity : Activity() {
             period.put("records", records).put("clean", sumRecords(records, "clean")).put("scrap", sumRecords(records, "scrap"))
             archive.put(archiveIndex, period)
             entries.removeAll { it.date == date }
-            saveEntries()
+            repository.saveEntries(entries)
             prefs.edit().putString("archive", archive.toString()).apply()
             return
         }
@@ -464,7 +445,7 @@ class ProControlActivity : Activity() {
         val currentIndex = entries.indexOfFirst { it.date == date }
         if (currentIndex >= 0) entries[currentIndex] = entry else entries.add(entry)
         entries.sortByDescending { it.date }
-        saveEntries()
+        repository.saveEntries(entries)
     }
 
     private fun deleteCalendarEntry(date: String) {
@@ -489,7 +470,7 @@ class ProControlActivity : Activity() {
             return
         }
         entries.removeAll { it.date == date }
-        saveEntries()
+        repository.saveEntries(entries)
     }
 
     private fun editEntry(entry: ProductionEntry) {
@@ -523,7 +504,7 @@ class ProControlActivity : Activity() {
                 entries.remove(entry)
                 entries.add(ProductionEntry(date, clean / 1000.0, scrap / 1000.0, noteInput.text.toString().trim()))
                 entries.sortByDescending { it.date }
-                saveEntries()
+                repository.saveEntries(entries)
                 render()
             }.show()
     }
@@ -1218,7 +1199,7 @@ class ProControlActivity : Activity() {
                             }
                             prefs.edit().putString("archive", archive.toString())
                                 .putString("historical_entries", history.toString()).apply()
-                            entries.sortByDescending { it.date }; saveEntries()
+                            entries.sortByDescending { it.date }; repository.saveEntries(entries)
                             toast("Импорт завершён"); render()
                         }.show()
                 } catch (e: Exception) { toast("Ошибка импорта: ${e.message}") }
