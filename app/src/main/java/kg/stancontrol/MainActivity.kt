@@ -1645,6 +1645,23 @@ class MainActivity : ComponentActivity() {
         }, "Поделиться PDF"))
     }
 
+internal fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint) {
+    val value = prefs.getString("shift_handover_text", "")?.trim().orEmpty()
+    if (value.isBlank()) return
+    paint.color = android.graphics.Color.BLACK
+    paint.textSize = 8f
+    paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+    val maxWidth = 540f
+    val shown = if (paint.measureText(value) <= maxWidth) value else {
+        var shortened = value
+        while (shortened.isNotEmpty() && paint.measureText("…" + shortened) > maxWidth) {
+            shortened = shortened.drop(1)
+        }
+        "…" + shortened
+    }
+    canvas.drawText(shown, 577f - paint.measureText(shown), 832f, paint)
+}
+
     private fun readPacks(): List<Pack> {
         val a = JSONArray(prefs.getString("packs", "[]"))
         return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), round(o.getDouble("w") / (o.getInt("n") * o.optDouble("length", 6.0)) * 10.0) / 10.0, o.optInt("width", 5), o.optDouble("length", 6.0)) }
