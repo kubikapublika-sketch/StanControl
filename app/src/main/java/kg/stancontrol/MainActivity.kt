@@ -1645,7 +1645,7 @@ class MainActivity : ComponentActivity() {
         }, "Поделиться PDF"))
     }
 
-internal fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint) {
+private fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint) {
     val value = prefs.getString("shift_handover_text", "")?.trim().orEmpty()
     if (value.isBlank()) return
     paint.color = android.graphics.Color.BLACK
