@@ -9,6 +9,9 @@ import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,9 +38,6 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.round
 
-data class Pack(val weight: Double, val rows: Int, val pieces: Int, val coefficient: Double, val width: Int = 5, val length: Double = 6.0)
-data class Defect(val type: String, val weight: Double)
-data class Pallet(val type: String, val gross: Double, val tare: Double) { val net: Double get() = gross - tare }
 
 class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("stancontrol", MODE_PRIVATE) }
@@ -1149,7 +1149,7 @@ class MainActivity : ComponentActivity() {
         val cleanTonnes = cleanKg / 1000.0
         val scrapTonnes = scrapKg / 1000.0
         val saved = JSONObject().put("date", isoDate)
-            .put("clean", cleanTonnes).put("scrap", scrapTonnes).put("note", "").put("source", "StanControl").put("source", "StanControl")
+            .put("clean", cleanTonnes).put("scrap", scrapTonnes).put("note", "").put("source", "StanControl")
 
         val archive = try { JSONArray(target.getString("archive", "[]")) } catch (_: Exception) { JSONArray() }
         for (i in 0 until archive.length()) {
@@ -1252,13 +1252,28 @@ class MainActivity : ComponentActivity() {
             .put("backupVersion", 1)
             .put("createdAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
             .put("data", data)
-        val temp = File(backupDir, "backup.tmp")
-        temp.writeText(root.toString(2), Charsets.UTF_8)
-        if (backupFile.exists()) backupFile.delete()
-        if (!temp.renameTo(backupFile)) {
-            temp.copyTo(backupFile, overwrite = true)
-            temp.delete()
+        val temp = File.createTempFile("StanControl_backup_", ".tmp", backupDir)
+        try {
+            temp.writeText(root.toString(2), Charsets.UTF_8)
+
+            try {
+                Files.move(
+                    temp.toPath(),
+                    backupFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    temp.toPath(),
+                    backupFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+        } finally {
+            if (temp.exists()) temp.delete()
         }
+
         return backupFile
     }
 
@@ -1648,9 +1663,7 @@ class MainActivity : ComponentActivity() {
         }, "Поделиться PDF"))
     }
 
-    private fun fmtWhole(value: Double): String = String.format(Locale.getDefault(), "%.0f", value)
-
-    private fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint) {
+private fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint) {
         val value = prefs.getString("shift_handover_text", "")?.trim().orEmpty()
         if (value.isBlank()) return
         paint.color = android.graphics.Color.BLACK
@@ -1667,10 +1680,6 @@ class MainActivity : ComponentActivity() {
         canvas.drawText(shown, 577f - paint.measureText(shown), 832f, paint)
     }
 
-    private fun today(): String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
-    private fun fmt(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
-    private fun fmtWeight(value: Double): String = if (kotlin.math.abs(value - round(value)) < 0.000001) String.format(Locale.getDefault(), "%.0f", value) else fmt(value)
-    private fun fmtCoefficient(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
     private fun readPacks(): List<Pack> {
         val a = JSONArray(prefs.getString("packs", "[]"))
         return (0 until a.length()).map { val o = a.getJSONObject(it); Pack(o.getDouble("w"), o.getInt("r"), o.getInt("n"), round(o.getDouble("w") / (o.getInt("n") * o.optDouble("length", 6.0)) * 10.0) / 10.0, o.optInt("width", 5), o.optDouble("length", 6.0)) }
