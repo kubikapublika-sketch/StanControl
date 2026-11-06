@@ -33,6 +33,15 @@ class PackWidgetProvider : AppWidgetProvider() {
                 }
                 prefs.edit().putString("widget_weight_input", next).apply()
             }
+            ACTION_ROWS -> {
+                val profile = prefs.getString("profile", "Уголок 50") ?: "Уголок 50"
+                val key = profile.substringAfterLast(" ")
+                val defaultRows = if (key == "40") 20 else 15
+                val prefKey = "profile_${key}_rows"
+                val rows = (prefs.getString(prefKey, defaultRows.toString())?.toIntOrNull() ?: defaultRows)
+                val delta = intent.getIntExtra("delta", 0)
+                prefs.edit().putString(prefKey, (rows + delta).coerceIn(1, 99).toString()).apply()
+            }
             ACTION_ADD -> {
                 val weight = current.toIntOrNull()
                 val active = prefs.getBoolean("active", false)
@@ -49,11 +58,7 @@ class PackWidgetProvider : AppWidgetProvider() {
                         val coefficient = round(weight.toDouble() / (count * length) * 10.0) / 10.0
                         val packs = try { JSONArray(prefs.getString("packs", "[]")) } catch (_: Exception) { JSONArray() }
                         packs.put(JSONObject().put("w", weight).put("r", rows).put("n", count).put("k", coefficient).put("width", width).put("length", length))
-                        val defects = prefs.getString("defects", "[]") ?: "[]"
-                        val pallets = prefs.getString("pallets", "[]") ?: "[]"
                         prefs.edit().putString("packs", packs.toString()).putString("widget_weight_input", "").apply()
-                        val backup = JSONObject().put("packs", packs.toString()).put("defects", defects).put("pallets", pallets)
-                        // Keep widget writes in the same SharedPreferences store as the main application.
                     }
                 }
             }
@@ -66,6 +71,7 @@ class PackWidgetProvider : AppWidgetProvider() {
     companion object {
         const val ACTION_KEY = "kg.stancontrol.WIDGET_KEY"
         const val ACTION_ADD = "kg.stancontrol.WIDGET_ADD"
+        const val ACTION_ROWS = "kg.stancontrol.WIDGET_ROWS"
 
         fun update(context: Context, manager: AppWidgetManager, id: Int) {
             val prefs = context.getSharedPreferences("stancontrol", Context.MODE_PRIVATE)
@@ -74,14 +80,30 @@ class PackWidgetProvider : AppWidgetProvider() {
             val last = packs.optJSONObject(packs.length() - 1)
             val lastText = if (last == null) "Пока нет пачек" else {
                 val coefficient = last.optDouble("w", 0.0) / (last.optInt("n", 1).coerceAtLeast(1) * last.optDouble("length", 6.0).coerceAtLeast(0.1))
-                "${packs.length()}) ${last.optInt("w")} кг · К ${DecimalFormat("0.0", DecimalFormatSymbols(Locale("ru"))).format(coefficient)}"
+                "${packs.length()}) ${last.optInt("w")} кг  ·  К ${DecimalFormat("0.0", DecimalFormatSymbols(Locale("ru"))).format(coefficient)}"
             }
+            val profile = prefs.getString("profile", "Уголок 50") ?: "Уголок 50"
+            val key = profile.substringAfterLast(" ")
+            val defaultRows = if (key == "40") 20 else 15
+            val rows = prefs.getString("profile_${key}_rows", defaultRows.toString())?.toIntOrNull() ?: defaultRows
             views.setTextViewText(R.id.widget_last_pack, lastText)
             views.setTextViewText(R.id.widget_weight, prefs.getString("widget_weight_input", "")?.ifBlank { "Вес, кг" } ?: "Вес, кг")
-            views.setTextViewText(R.id.widget_status, if (prefs.getBoolean("active", false)) "Смена открыта" else "Сначала начни смену в приложении")
-            val keys = listOf(R.id.key_1 to "1", R.id.key_2 to "2", R.id.key_3 to "3", R.id.key_4 to "4", R.id.key_5 to "5", R.id.key_6 to "6", R.id.key_7 to "7", R.id.key_8 to "8", R.id.key_9 to "9", R.id.key_del to "DEL", R.id.key_0 to "0", R.id.key_clear to "CLR")
-            keys.forEach { (viewId, key) ->
-                val intent = Intent(context, PackWidgetProvider::class.java).setAction(ACTION_KEY).putExtra("key", key)
+            views.setTextViewText(R.id.widget_rows, "СЛОИ  ·  $rows")
+            views.setTextViewText(R.id.widget_status, if (prefs.getBoolean("active", false)) "СМЕНА ОТКРЫТА" else "Сначала начни смену в приложении")
+
+            val keys = listOf(
+                R.id.key_7 to "7", R.id.key_8 to "8", R.id.key_9 to "9",
+                R.id.key_4 to "4", R.id.key_5 to "5", R.id.key_6 to "6",
+                R.id.key_1 to "1", R.id.key_2 to "2", R.id.key_3 to "3",
+                R.id.key_del to "DEL", R.id.key_0 to "0", R.id.key_clear to "CLR"
+            )
+            keys.forEach { (viewId, keyValue) ->
+                val intent = Intent(context, PackWidgetProvider::class.java).setAction(ACTION_KEY).putExtra("key", keyValue)
+                val pi = PendingIntent.getBroadcast(context, viewId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                views.setOnClickPendingIntent(viewId, pi)
+            }
+            listOf(R.id.row_minus to -1, R.id.row_plus to 1).forEach { (viewId, delta) ->
+                val intent = Intent(context, PackWidgetProvider::class.java).setAction(ACTION_ROWS).putExtra("delta", delta)
                 val pi = PendingIntent.getBroadcast(context, viewId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 views.setOnClickPendingIntent(viewId, pi)
             }
