@@ -38,13 +38,12 @@ class ProControlActivity : Activity() {
     private val displayDate = SimpleDateFormat("dd.MM.yyyy", Locale("ru"))
     private var cleanRate = 80.0
     private var scrapRate = 75.0
-    private var entries = mutableListOf<Entry>()
+    private var entries = mutableListOf<ProductionEntry>()
     private var periodStart = ""
     private var archiveEditing = false
     private var selectedArchiveIndex = -1
     private var visibleMonth = java.util.Calendar.getInstance().apply { set(java.util.Calendar.DAY_OF_MONTH, 1) }
 
-    data class Entry(val date: String, val clean: Double, val scrap: Double, val note: String)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,7 +69,7 @@ class ProControlActivity : Activity() {
             val array = JSONArray(prefs.getString("entries", "[]") ?: "[]")
             for (i in 0 until array.length()) {
                 val o = array.getJSONObject(i)
-                entries.add(Entry(o.getString("date"), o.optDouble("clean"), o.optDouble("scrap"), o.optString("note")))
+                entries.add(ProductionEntry(o.getString("date"), o.optDouble("clean"), o.optDouble("scrap"), o.optString("note")))
             }
         } catch (_: Exception) { }
         entries.sortByDescending { it.date }
@@ -253,19 +252,19 @@ class ProControlActivity : Activity() {
         })
     }
 
-    private fun findCalendarEntry(date: String): Entry? {
+    private fun findCalendarEntry(date: String): ProductionEntry? {
         entries.firstOrNull { it.date == date }?.let { return it }
         val history = JSONArray(prefs.getString("historical_entries", "[]") ?: "[]")
         for (i in 0 until history.length()) {
             val item = history.optJSONObject(i) ?: continue
-            if (item.optString("date") == date) return Entry(date, item.optDouble("clean"), item.optDouble("scrap"), item.optString("note"))
+            if (item.optString("date") == date) return ProductionEntry(date, item.optDouble("clean"), item.optDouble("scrap"), item.optString("note"))
         }
         val archive = JSONArray(prefs.getString("archive", "[]") ?: "[]")
         for (i in 0 until archive.length()) {
             val records = archive.optJSONObject(i)?.optJSONArray("records") ?: continue
             for (j in 0 until records.length()) {
                 val item = records.optJSONObject(j) ?: continue
-                if (item.optString("date") == date) return Entry(date, item.optDouble("clean"), item.optDouble("scrap"), item.optString("note"))
+                if (item.optString("date") == date) return ProductionEntry(date, item.optDouble("clean"), item.optDouble("scrap"), item.optString("note"))
             }
         }
         return null
@@ -408,7 +407,7 @@ class ProControlActivity : Activity() {
                 if (cleanKg == null || scrapKg == null || cleanKg < 0 || scrapKg < 0) {
                     toast("Введи оба значения в кг. Ноль тоже можно."); return@setOnClickListener
                 }
-                saveCalendarEntry(Entry(date, cleanKg / 1000.0, scrapKg / 1000.0, noteInput.text.toString().trim()))
+                saveCalendarEntry(ProductionEntry(date, cleanKg / 1000.0, scrapKg / 1000.0, noteInput.text.toString().trim()))
                 dialog.dismiss()
                 toast("Запись за " + formatDate(date) + " сохранена")
                 render()
@@ -426,7 +425,7 @@ class ProControlActivity : Activity() {
         dialog.show()
     }
 
-    private fun saveCalendarEntry(entry: Entry) {
+    private fun saveCalendarEntry(entry: ProductionEntry) {
         val date = entry.date
         val archive = JSONArray(prefs.getString("archive", "[]") ?: "[]")
         var archiveIndex = -1
@@ -493,7 +492,7 @@ class ProControlActivity : Activity() {
         saveEntries()
     }
 
-    private fun editEntry(entry: Entry) {
+    private fun editEntry(entry: ProductionEntry) {
         val dateInput = EditText(this).apply { setText(entry.date); hint = "ГГГГ-ММ-ДД" }
         val cleanInput = numberInput("Чистая продукция, кг").apply { setText((entry.clean * 1000).toLong().toString()) }
         val scrapInput = numberInput("Брак, кг").apply { setText((entry.scrap * 1000).toLong().toString()) }
@@ -522,7 +521,7 @@ class ProControlActivity : Activity() {
                     toast("За эту дату запись уже существует"); return@setPositiveButton
                 }
                 entries.remove(entry)
-                entries.add(Entry(date, clean / 1000.0, scrap / 1000.0, noteInput.text.toString().trim()))
+                entries.add(ProductionEntry(date, clean / 1000.0, scrap / 1000.0, noteInput.text.toString().trim()))
                 entries.sortByDescending { it.date }
                 saveEntries()
                 render()
@@ -565,19 +564,19 @@ class ProControlActivity : Activity() {
             }.show()
     }
 
-    private fun allEntries(): List<Entry> {
+    private fun allEntries(): List<ProductionEntry> {
         val result = entries.toMutableList()
         val history = JSONArray(prefs.getString("historical_entries", "[]") ?: "[]")
         for (i in 0 until history.length()) {
             val o = history.optJSONObject(i) ?: continue
-            result.add(Entry(o.optString("date"), o.optDouble("clean"), o.optDouble("scrap"), o.optString("note")))
+            result.add(ProductionEntry(o.optString("date"), o.optDouble("clean"), o.optDouble("scrap"), o.optString("note")))
         }
         val a = JSONArray(prefs.getString("archive", "[]") ?: "[]")
         for (i in 0 until a.length()) {
             val records = a.optJSONObject(i)?.optJSONArray("records") ?: continue
             for (j in 0 until records.length()) {
                 val o = records.optJSONObject(j) ?: continue
-                result.add(Entry(o.optString("date"), o.optDouble("clean"), o.optDouble("scrap"), o.optString("note")))
+                result.add(ProductionEntry(o.optString("date"), o.optDouble("clean"), o.optDouble("scrap"), o.optString("note")))
             }
         }
         return result.distinctBy { it.date }.sortedBy { it.date }
@@ -698,7 +697,7 @@ class ProControlActivity : Activity() {
         AlertDialog.Builder(this).setTitle("Графики за всё время").setView(box).setPositiveButton("Закрыть", null).show()
     }
 
-    private inner class ProductionChart(private val data: List<Entry>) : View(this@ProControlActivity) {
+    private inner class ProductionChart(private val data: List<ProductionEntry>) : View(this@ProControlActivity) {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private var zoom = 1f
         private var shift = 0f
@@ -744,7 +743,7 @@ class ProControlActivity : Activity() {
             val save = canvas.save()
             canvas.clipRect(l, t, r, b)
             canvas.translate(shift, 0f); canvas.scale(zoom, 1f, l, 0f)
-            fun line(value: (Entry) -> Double, color: Int) {
+            fun line(value: (ProductionEntry) -> Double, color: Int) {
                 val max = data.maxOf(value).coerceAtLeast(1.0)
                 val path = Path()
                 p.color = color; p.style = Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat()
@@ -1162,10 +1161,10 @@ class ProControlActivity : Activity() {
                     if (!crc.equals(parts[1], true)) throw Exception("Контрольная сумма не совпала")
                     val root = JSONObject(String(raw, Charsets.UTF_8))
                     if (root.optInt("v") != 1) throw Exception("Версия кода не поддерживается")
-                    val newCurrent = mutableListOf<Entry>()
+                    val newCurrent = mutableListOf<ProductionEntry>()
                     val ca = root.optJSONArray("current") ?: JSONArray()
                     for (i in 0 until ca.length()) {
-                        val e = ca.getJSONObject(i); newCurrent.add(Entry(e.getString("d"), e.optDouble("c"), e.optDouble("s"), e.optString("n")))
+                        val e = ca.getJSONObject(i); newCurrent.add(ProductionEntry(e.getString("d"), e.optDouble("c"), e.optDouble("s"), e.optString("n")))
                     }
                     val newPeriods = root.optJSONArray("periods") ?: JSONArray()
                     val newHistory = root.optJSONArray("history") ?: JSONArray()
