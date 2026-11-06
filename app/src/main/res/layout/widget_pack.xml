@@ -1,13 +1,13 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:padding="14dp"
     android:background="@drawable/widget_panel">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="42dp"
+        android:layout_height="48dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
         <TextView
@@ -60,7 +60,7 @@
     <TextView
         android:id="@+id/widget_weight"
         android:layout_width="match_parent"
-        android:layout_height="54dp"
+        android:layout_height="68dp"
         android:gravity="center_vertical|end"
         android:text="Вес, кг"
         android:textSize="27sp"
@@ -93,7 +93,7 @@
     <TextView
         android:id="@+id/widget_add"
         android:layout_width="match_parent"
-        android:layout_height="54dp"
+        android:layout_height="66dp"
         android:gravity="center"
         android:text="ДОБАВИТЬ ПАЧКУ"
         android:textColor="#171A1C"
