@@ -22,8 +22,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
-        run: gradle assembleDebug
+      - name: Run unit tests and build debug APK
+        run: gradle testDebugUnitTest assembleDebug
       - name: Sign APK with permanent StanControl key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
