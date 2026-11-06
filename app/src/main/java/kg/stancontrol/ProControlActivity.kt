@@ -1300,7 +1300,15 @@ class ProControlActivity : Activity() {
             }
         } catch (_: Exception) { false }
     }
-    private fun formatDate(value: String): String = try { displayDate.format(dateFormat.parse(value)!!) } catch (_: Exception) { value }
+    private fun formatDate(value: String): String {
+        val parsedDate = try {
+            dateFormat.parse(value)
+        } catch (_: Exception) {
+            null
+        } ?: return value
+
+        return displayDate.format(parsedDate)
+    }
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12)); setBackgroundColor(0xFFFFFFFF.toInt())
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) }
