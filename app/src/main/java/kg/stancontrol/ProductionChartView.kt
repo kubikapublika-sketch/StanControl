@@ -64,7 +64,7 @@ internal class ProductionChartView(
                 val firstDate = data.first().date
                 val lastDate = data.last().date
                 val left = dp(38).toFloat()
-                val span = (calendarDaysBetween(firstDate, lastDate) - 1).coerceAtLeast(2)
+                val span = calendarDaysBetween(firstDate, lastDate).coerceAtLeast(2) - 1
                 val step = (width - dp(52)).toFloat() / span
 
                 val selectedIndex = data.indices.minByOrNull { index ->
