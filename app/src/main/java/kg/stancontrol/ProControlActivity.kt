@@ -656,7 +656,25 @@ class ProControlActivity : Activity() {
     private fun showCharts() {
         val data = allEntries()
         if (data.isEmpty()) { toast("Пока нет данных для графиков"); return }
-        val chart = ProductionChart(data)
+        val chart = ProductionChartView(
+            context = this,
+            data = data,
+            cleanRate = cleanRate,
+            scrapRate = scrapRate,
+            formatDate = ::formatDate,
+            calendarDaysBetween = ::calendarDaysBetween,
+            onEntrySelected = { entry ->
+                AlertDialog.Builder(this)
+                    .setTitle(formatDate(entry.date))
+                    .setMessage(
+                        "Заработок: " + money(entry.clean * cleanRate + entry.scrap * scrapRate) +
+                            " сом\\nЧистая продукция: " + qty(entry.clean) +
+                            " кг\\nБрак: " + qty(entry.scrap) + " кг"
+                    )
+                    .setPositiveButton("ОК", null)
+                    .show()
+            }
+        )
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(4)) }
         box.addView(label("Показатели по дням", 15f, 0xFF17243A.toInt(), true))
         box.addView(label("Легенда графика", 12f, 0xFF68758A.toInt(), true))
@@ -676,78 +694,6 @@ class ProControlActivity : Activity() {
         box.addView(chart, LinearLayout.LayoutParams(-1, dp(340)))
         box.addView(Button(this).apply { text = "Сбросить масштаб"; setOnClickListener { chart.reset() } })
         AlertDialog.Builder(this).setTitle("Графики за всё время").setView(box).setPositiveButton("Закрыть", null).show()
-    }
-
-    private inner class ProductionChart(private val data: List<ProductionEntry>) : View(this@ProControlActivity) {
-        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        private var zoom = 1f
-        private var shift = 0f
-        private val scaler = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(d: ScaleGestureDetector): Boolean {
-                zoom = (zoom * d.scaleFactor).coerceIn(1f, 10f)
-                invalidate()
-                return true
-            }
-        })
-        private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent) = true
-            override fun onScroll(a: MotionEvent?, b: MotionEvent, dx: Float, dy: Float): Boolean {
-                if (zoom > 1f) shift = (shift - dx).coerceIn(-width * (zoom - 1f), 0f)
-                invalidate()
-                return true
-            }
-            override fun onSingleTapUp(e: MotionEvent): Boolean {
-                val left = dp(38).toFloat()
-                val span = calendarDaysBetween(data.first().date, data.last().date).coerceAtLeast(2) - 1
-                val step = (width - dp(52)).toFloat() / span
-                val index = data.indices.minByOrNull { idx ->
-                    kotlin.math.abs(left + (calendarDaysBetween(data.first().date, data[idx].date) - 1) * step * zoom + shift - e.x)
-                } ?: 0
-                val item = data[index]
-                AlertDialog.Builder(this@ProControlActivity).setTitle(formatDate(item.date))
-                    .setMessage("Заработок: " + money(item.clean * cleanRate + item.scrap * scrapRate) +
-                        " сом\nЧистая продукция: " + qty(item.clean) + " кг\nБрак: " + qty(item.scrap) + " кг")
-                    .setPositiveButton("ОК", null).show()
-                return true
-            }
-        })
-        fun reset() { zoom = 1f; shift = 0f; invalidate() }
-        override fun onTouchEvent(e: MotionEvent): Boolean { scaler.onTouchEvent(e); gestures.onTouchEvent(e); return true }
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            val l = dp(38).toFloat(); val r = width - dp(10).toFloat()
-            val t = dp(18).toFloat(); val b = height - dp(34).toFloat()
-            p.color = 0xFFD5DCE5.toInt(); p.strokeWidth = dp(1).toFloat()
-            for (i in 0..4) { val y = t + (b - t) * i / 4f; canvas.drawLine(l, y, r, y, p) }
-            val spanDays = (calendarDaysBetween(data.first().date, data.last().date) - 1).coerceAtLeast(1)
-            val step = (r - l) / spanDays
-            val save = canvas.save()
-            canvas.clipRect(l, t, r, b)
-            canvas.translate(shift, 0f); canvas.scale(zoom, 1f, l, 0f)
-            fun line(value: (ProductionEntry) -> Double, color: Int) {
-                val max = data.maxOf(value).coerceAtLeast(1.0)
-                val path = Path()
-                p.color = color; p.style = Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat()
-                data.forEachIndexed { i, e ->
-                    val x = l + (calendarDaysBetween(data.first().date, e.date) - 1) * step
-                    val y = b - (value(e) / max).toFloat() * (b - t)
-                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                }
-                canvas.drawPath(path, p)
-                p.style = Paint.Style.FILL
-                data.forEachIndexed { i, e ->
-                    canvas.drawCircle(l + (calendarDaysBetween(data.first().date, e.date) - 1) * step, b - (value(e) / max).toFloat() * (b - t), dp(2).toFloat(), p)
-                }
-            }
-            line({ it.clean * cleanRate + it.scrap * scrapRate }, Color.rgb(37, 99, 235))
-            line({ it.clean }, Color.rgb(22, 163, 74))
-            line({ it.scrap }, Color.rgb(220, 38, 38))
-            canvas.restoreToCount(save)
-            p.color = Color.DKGRAY; p.textSize = dp(10).toFloat()
-            canvas.drawText(formatDate(data.first().date), l, height - dp(10).toFloat(), p)
-            val end = formatDate(data.last().date)
-            canvas.drawText(end, r - p.measureText(end), height - dp(10).toFloat(), p)
-        }
     }
 
     private fun showArchive() {
