@@ -9,6 +9,9 @@ import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1146,7 +1149,7 @@ class MainActivity : ComponentActivity() {
         val cleanTonnes = cleanKg / 1000.0
         val scrapTonnes = scrapKg / 1000.0
         val saved = JSONObject().put("date", isoDate)
-            .put("clean", cleanTonnes).put("scrap", scrapTonnes).put("note", "").put("source", "StanControl").put("source", "StanControl")
+            .put("clean", cleanTonnes).put("scrap", scrapTonnes).put("note", "").put("source", "StanControl")
 
         val archive = try { JSONArray(target.getString("archive", "[]")) } catch (_: Exception) { JSONArray() }
         for (i in 0 until archive.length()) {
@@ -1249,13 +1252,28 @@ class MainActivity : ComponentActivity() {
             .put("backupVersion", 1)
             .put("createdAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
             .put("data", data)
-        val temp = File(backupDir, "backup.tmp")
-        temp.writeText(root.toString(2), Charsets.UTF_8)
-        if (backupFile.exists()) backupFile.delete()
-        if (!temp.renameTo(backupFile)) {
-            temp.copyTo(backupFile, overwrite = true)
-            temp.delete()
+        val temp = File.createTempFile("StanControl_backup_", ".tmp", backupDir)
+        try {
+            temp.writeText(root.toString(2), Charsets.UTF_8)
+
+            try {
+                Files.move(
+                    temp.toPath(),
+                    backupFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    temp.toPath(),
+                    backupFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+        } finally {
+            if (temp.exists()) temp.delete()
         }
+
         return backupFile
     }
 
@@ -1646,21 +1664,21 @@ class MainActivity : ComponentActivity() {
     }
 
 private fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint) {
-    val value = prefs.getString("shift_handover_text", "")?.trim().orEmpty()
-    if (value.isBlank()) return
-    paint.color = android.graphics.Color.BLACK
-    paint.textSize = 8f
-    paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-    val maxWidth = 540f
-    val shown = if (paint.measureText(value) <= maxWidth) value else {
-        var shortened = value
-        while (shortened.isNotEmpty() && paint.measureText("…" + shortened) > maxWidth) {
-            shortened = shortened.drop(1)
+        val value = prefs.getString("shift_handover_text", "")?.trim().orEmpty()
+        if (value.isBlank()) return
+        paint.color = android.graphics.Color.BLACK
+        paint.textSize = 8f
+        paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+        val maxWidth = 540f
+        val shown = if (paint.measureText(value) <= maxWidth) value else {
+            var shortened = value
+            while (shortened.isNotEmpty() && paint.measureText("…" + shortened) > maxWidth) {
+                shortened = shortened.drop(1)
+            }
+            "…" + shortened
         }
-        "…" + shortened
+        canvas.drawText(shown, 577f - paint.measureText(shown), 832f, paint)
     }
-    canvas.drawText(shown, 577f - paint.measureText(shown), 832f, paint)
-}
 
     private fun readPacks(): List<Pack> {
         val a = JSONArray(prefs.getString("packs", "[]"))
