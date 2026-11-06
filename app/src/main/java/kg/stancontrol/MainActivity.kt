@@ -1103,16 +1103,82 @@ class MainActivity : ComponentActivity() {
 
     private fun syncArchivedShiftsToProControl() {
         val archived = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
+        val sourceDates = mutableSetOf<String>()
+        val sourceShifts = mutableListOf<Triple<String, Double, Double>>()
         for (i in 0 until archived.length()) {
             val shift = archived.optJSONObject(i) ?: continue
             val shiftDate = shift.optString("date", "")
             if (shiftDate.isBlank()) continue
-            syncShiftToProControl(
-                shiftDate,
-                shift.optDouble("packTotal", 0.0),
-                shift.optDouble("defectTotal", 0.0)
-            )
+            val isoDate = displayDateToIso(shiftDate) ?: continue
+            sourceDates.add(isoDate)
+            sourceShifts.add(Triple(shiftDate, shift.optDouble("packTotal", 0.0), shift.optDouble("defectTotal", 0.0)))
         }
+
+        // Future dates cannot be entered in ProControl manually. Any future record
+        // absent from StanControl's current archive is therefore a stale synced record.
+        val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val target = getSharedPreferences("procontrol", MODE_PRIVATE)
+        val editor = target.edit()
+
+        val entries = try { JSONArray(target.getString("entries", "[]")) } catch (_: Exception) { JSONArray() }
+        val keptEntries = JSONArray()
+        for (i in 0 until entries.length()) {
+            val item = entries.optJSONObject(i) ?: continue
+            val date = item.optString("date", "")
+            val isManaged = item.optString("source") == "StanControl"
+            if ((isManaged && date !in sourceDates) || (date > todayIso && date !in sourceDates)) continue
+            keptEntries.put(item)
+        }
+        if (keptEntries.length() != entries.length()) editor.putString("entries", keptEntries.toString())
+
+        val history = try { JSONArray(target.getString("historical_entries", "[]")) } catch (_: Exception) { JSONArray() }
+        val keptHistory = JSONArray()
+        for (i in 0 until history.length()) {
+            val item = history.optJSONObject(i) ?: continue
+            val date = item.optString("date", "")
+            val isManaged = item.optString("source") == "StanControl"
+            if ((isManaged && date !in sourceDates) || (date > todayIso && date !in sourceDates)) continue
+            keptHistory.put(item)
+        }
+        if (keptHistory.length() != history.length()) editor.putString("historical_entries", keptHistory.toString())
+
+        val periods = try { JSONArray(target.getString("archive", "[]")) } catch (_: Exception) { JSONArray() }
+        var periodsChanged = false
+        for (i in 0 until periods.length()) {
+            val period = periods.optJSONObject(i) ?: continue
+            val records = period.optJSONArray("records") ?: JSONArray()
+            val kept = JSONArray()
+            var changed = false
+            for (j in 0 until records.length()) {
+                val item = records.optJSONObject(j) ?: continue
+                val date = item.optString("date", "")
+                val isManaged = item.optString("source") == "StanControl"
+                if ((isManaged && date !in sourceDates) || (date > todayIso && date !in sourceDates)) {
+                    changed = true
+                    continue
+                }
+                kept.put(item)
+            }
+            if (changed) {
+                period.put("records", kept)
+                period.put("clean", (0 until kept.length()).sumOf { kept.optJSONObject(it)?.optDouble("clean", 0.0) ?: 0.0 })
+                period.put("scrap", (0 until kept.length()).sumOf { kept.optJSONObject(it)?.optDouble("scrap", 0.0) ?: 0.0 })
+                periods.put(i, period)
+                periodsChanged = true
+            }
+        }
+        if (periodsChanged) editor.putString("archive", periods.toString())
+        editor.commit()
+
+        for ((date, cleanKg, scrapKg) in sourceShifts) {
+            syncShiftToProControl(date, cleanKg, scrapKg)
+        }
+    }
+
+    private fun displayDateToIso(displayDate: String): String? {
+        val parts = displayDate.split(".")
+        if (parts.size != 3 || parts[0].length != 2 || parts[1].length != 2 || parts[2].length != 4) return null
+        return "${parts[2]}-${parts[1]}-${parts[0]}"
     }
 
     private fun syncShiftToProControl(displayDate: String, cleanKg: Double, scrapKg: Double) {
@@ -1126,7 +1192,7 @@ class MainActivity : ComponentActivity() {
         val cleanTonnes = cleanKg / 1000.0
         val scrapTonnes = scrapKg / 1000.0
         val saved = JSONObject().put("date", isoDate)
-            .put("clean", cleanTonnes).put("scrap", scrapTonnes).put("note", "")
+            .put("clean", cleanTonnes).put("scrap", scrapTonnes).put("note", "").put("source", "StanControl")
 
         val archive = try { JSONArray(target.getString("archive", "[]")) } catch (_: Exception) { JSONArray() }
         for (i in 0 until archive.length()) {
