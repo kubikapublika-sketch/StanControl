@@ -23,8 +23,6 @@ internal class ProductionChartView(
     private val cleanRate: Double,
     private val scrapRate: Double,
     private val formatDate: (String) -> String,
-    private val formatQuantity: (Double) -> String,
-    private val formatMoney: (Double) -> String,
     private val calendarDaysBetween: (String, String) -> Int,
     private val onEntrySelected: (ProductionEntry) -> Unit
 ) : View(context) {
@@ -119,11 +117,11 @@ internal class ProductionChartView(
         canvas.translate(shift, 0f)
         canvas.scale(zoom, 1f, left, 0f)
 
-        drawSeries(canvas, left, top, bottom, horizontalStep) {
+        drawSeries(canvas, left, top, bottom, horizontalStep, Color.rgb(37, 99, 235)) {
             it.clean * cleanRate + it.scrap * scrapRate
         }
-        drawSeries(canvas, left, top, bottom, horizontalStep) { it.clean }
-        drawSeries(canvas, left, top, bottom, horizontalStep) { it.scrap }
+        drawSeries(canvas, left, top, bottom, horizontalStep, Color.rgb(22, 163, 74)) { it.clean }
+        drawSeries(canvas, left, top, bottom, horizontalStep, Color.rgb(220, 38, 38)) { it.scrap }
 
         canvas.restoreToCount(canvasState)
 
@@ -146,11 +144,12 @@ internal class ProductionChartView(
         top: Float,
         bottom: Float,
         horizontalStep: Float,
+        color: Int,
         value: (ProductionEntry) -> Double
     ) {
         val maximum = data.maxOf(value).coerceAtLeast(1.0)
         val path = Path()
-        paint.color = seriesColor(value)
+        paint.color = color
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = dp(2).toFloat()
 
@@ -169,11 +168,6 @@ internal class ProductionChartView(
         }
     }
 
-    private fun seriesColor(value: (ProductionEntry) -> Double): Int = when (value) {
-        // The series are selected by stable function references below instead of comparing lambdas.
-        else -> SERIES_DEFAULT_COLOR
-    }
-
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
@@ -182,6 +176,5 @@ internal class ProductionChartView(
         const val MAX_ZOOM = 10f
 
         const val GRID_COLOR = 0xFFD5DCE5.toInt()
-        const val SERIES_DEFAULT_COLOR = 0xFF2563EB.toInt()
     }
 }
