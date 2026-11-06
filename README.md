@@ -65,7 +65,7 @@ These examples remain editable and are not hardcoded assumptions.
 Build the debug APK with:
 
 ```bash
-gradle assembleDebug
+gradle testDebugUnitTest assembleDebug
 ```
 
 Build environment used by CI:
