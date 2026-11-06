@@ -33,7 +33,7 @@
             android:layout_height="32dp"
             android:gravity="center"
             android:text="15 СЛОЁВ"
-            android:textColor="#E9B949"
+            android:textColor="#F08AB8"
             android:textSize="11sp"
             android:textStyle="bold"/>
         <TextView
@@ -52,7 +52,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Пока нет пачек"
-        android:textColor="#C8D0D5"
+        android:textColor="#E8DCE3"
         android:textSize="14sp"
         android:paddingTop="8dp"
         android:paddingBottom="8dp"/>
@@ -106,7 +106,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="СМЕНА ОТКРЫТА"
-        android:textColor="#9DA9B0"
+        android:textColor="#D9B9CA"
         android:textSize="10sp"
         android:paddingTop="5dp"/>
 </LinearLayout>
