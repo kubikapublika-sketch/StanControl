@@ -161,6 +161,7 @@ class ProControlActivity : Activity() {
                     dayCalendar.set(java.util.Calendar.DAY_OF_MONTH, dayNumber)
                     val dayDate = dateFormat.format(dayCalendar.time)
                     val saved = findCalendarEntry(dayDate)
+                    val closedPeriod = findClosedPeriodEnding(dayDate)
                     val previousCalendar = (dayCalendar.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_MONTH, -1) }
                     val previousEntry = findCalendarEntry(dateFormat.format(previousCalendar.time))
                     val trend = if (saved != null && previousEntry != null) when {
@@ -172,13 +173,21 @@ class ProControlActivity : Activity() {
                         text = dayNumber.toString() + if (saved != null) "  •" + trend else ""
                         gravity = Gravity.CENTER
                         textSize = 14f
-                        setTextColor(if (saved != null) 0xFF087B58.toInt() else 0xFF17243A.toInt())
+                        setTextColor(when {
+                            closedPeriod != null -> 0xFFC62828.toInt()
+                            saved != null -> 0xFF087B58.toInt()
+                            else -> 0xFF17243A.toInt()
+                        })
                         setBackgroundColor(when {
+                            closedPeriod != null -> 0xFFFFE1E1.toInt()
                             dayDate == today -> 0xFFDCEBFF.toInt()
                             saved != null -> 0xFFE4F4EC.toInt()
                             else -> 0xFFFFFFFF.toInt()
                         })
-                        setOnClickListener { showCalendarEntry(dayDate) }
+                        setOnClickListener {
+                            if (closedPeriod != null) showClosedPeriodActions(dayDate, closedPeriod)
+                            else showCalendarEntry(dayDate)
+                        }
                     }
                     weekRow.addView(cell, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                         setMargins(dp(2), dp(2), dp(2), dp(2))
@@ -511,6 +520,66 @@ class ProControlActivity : Activity() {
                 repository.saveEntries(entries)
                 render()
             }.show()
+    }
+
+    private fun findClosedPeriodEnding(date: String): JSONObject? {
+        val archive = try { JSONArray(prefs.getString("archive", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
+        for (i in archive.length() - 1 downTo 0) {
+            val period = archive.optJSONObject(i) ?: continue
+            if (!period.optBoolean("open", false) && period.optString("end") == date) return period
+        }
+        return null
+    }
+
+    private fun showClosedPeriodActions(date: String, period: JSONObject) {
+        val start = period.optString("start")
+        val end = period.optString("end")
+        val canUndo = start.isNotBlank() && end.isNotBlank() && nextCalendarDate(end) == periodStart
+        val message = (period.optString("name", "Закрытый период") + "\\n" +
+            formatDate(start) + " - " + formatDate(end) + "\\n" +
+            "Чистая продукция: " + qty(period.optDouble("clean")) + " кг\\n" +
+            "Брак: " + qty(period.optDouble("scrap")) + " кг\\n\\n" +
+            if (canUndo) "Можно отменить закрытие. Все смены вернутся в текущий период."
+            else "Сначала нужно отменить закрытие более позднего периода.")
+        val builder = AlertDialog.Builder(this).setTitle("Дата закрытия: " + formatDate(date))
+            .setMessage(message).setPositiveButton("Понятно", null)
+        if (canUndo) {
+            builder.setNeutralButton("Отменить закрытие") { _, _ -> undoPeriodClosure(period) }
+        }
+        builder.show()
+    }
+
+    private fun undoPeriodClosure(selectedPeriod: JSONObject) {
+        val archive = try { JSONArray(prefs.getString("archive", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
+        val start = selectedPeriod.optString("start")
+        val end = selectedPeriod.optString("end")
+        if (start.isBlank() || end.isBlank() || nextCalendarDate(end) != periodStart) {
+            toast("Сначала отмени закрытие более позднего периода")
+            return
+        }
+        val records = selectedPeriod.optJSONArray("records") ?: JSONArray()
+        val restored = entries.associateBy { it.date }.toMutableMap()
+        for (i in 0 until records.length()) {
+            val row = records.optJSONObject(i) ?: continue
+            val date = row.optString("date")
+            if (date.isNotBlank()) {
+                restored[date] = ProductionEntry(
+                    date = date,
+                    clean = row.optDouble("clean", 0.0),
+                    scrap = row.optDouble("scrap", 0.0),
+                    note = row.optString("note", "")
+                )
+            }
+        }
+        entries = restored.values.sortedByDescending { it.date }.toMutableList()
+        repository.saveEntries(entries)
+        val index = (0 until archive.length()).firstOrNull { archive.optJSONObject(it) === selectedPeriod ||
+            (archive.optJSONObject(it)?.optString("start") == start && archive.optJSONObject(it)?.optString("end") == end) }
+        if (index != null) archive.remove(index)
+        periodStart = start
+        prefs.edit().putString("archive", archive.toString()).putString("period_start", periodStart).commit()
+        toast("Закрытие отменено. Смены сохранены и возвращены в текущий период.")
+        render()
     }
 
     private fun closePeriod() {
