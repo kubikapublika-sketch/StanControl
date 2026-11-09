@@ -1211,32 +1211,92 @@ class MainActivity : ComponentActivity() {
 
     private fun syncArchivedShiftsToProControl() {
         val archived = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
-        val sourceShifts = mutableListOf<Triple<String, Double, Double>>()
+        val sourceShifts = mutableListOf<JSONObject>()
         for (i in 0 until archived.length()) {
             val shift = archived.optJSONObject(i) ?: continue
-            val shiftDate = shift.optString("date", "")
-            if (displayDateToIso(shiftDate) == null) continue
-            sourceShifts.add(Triple(shiftDate, shift.optDouble("packTotal", 0.0), shift.optDouble("defectTotal", 0.0)))
+            val isoDate = displayDateToIso(shift.optString("date", "")) ?: continue
+            sourceShifts.add(
+                JSONObject()
+                    .put("date", isoDate)
+                    .put("clean", shift.optDouble("packTotal", 0.0) / 1000.0)
+                    .put("scrap", shift.optDouble("defectTotal", 0.0) / 1000.0)
+                    .put("note", "")
+                    .put("source", "StanControl")
+            )
         }
+        sourceShifts.sortBy { it.optString("date") }
 
-        // StanControl archive is the single source of truth for production records in CashControl.
-        // Rebuild synced production data from scratch so edits, date changes and deletions are mirrored.
         val target = getSharedPreferences("procontrol", MODE_PRIVATE)
         val periods = try { JSONArray(target.getString("archive", "[]")) } catch (_: Exception) { JSONArray() }
+        val current = try { JSONArray(target.getString("entries", "[]")) } catch (_: Exception) { JSONArray() }
+        val history = try { JSONArray(target.getString("historical_entries", "[]")) } catch (_: Exception) { JSONArray() }
+        val periodStart = target.getString("period_start", "") ?: ""
+
+        // Keep manual ProControl rows. Only rows synchronized from StanControl are rebuilt.
         for (i in 0 until periods.length()) {
             val period = periods.optJSONObject(i) ?: continue
-            period.put("records", JSONArray()).put("clean", 0.0).put("scrap", 0.0)
+            val oldRecords = period.optJSONArray("records") ?: JSONArray()
+            val kept = JSONArray()
+            for (j in 0 until oldRecords.length()) {
+                val row = oldRecords.optJSONObject(j) ?: continue
+                if (row.optString("source") != "StanControl") kept.put(row)
+            }
+            val start = period.optString("start", "")
+            val end = period.optString("end", "")
+            for (row in sourceShifts) {
+                val date = row.optString("date")
+                if (start.isNotBlank() && end.isNotBlank() && date >= start && date <= end) {
+                    // A date is unique: replace a legacy row for that date rather than duplicating it.
+                    for (j in kept.length() - 1 downTo 0) {
+                        if (kept.optJSONObject(j)?.optString("date") == date) kept.remove(j)
+                    }
+                    kept.put(JSONObject(row.toString()))
+                }
+            }
+            val sorted = (0 until kept.length()).mapNotNull { kept.optJSONObject(it) }
+                .sortedBy { it.optString("date") }
+            val records = JSONArray()
+            sorted.forEach { records.put(it) }
+            period.put("records", records)
+                .put("clean", sorted.sumOf { it.optDouble("clean", 0.0) })
+                .put("scrap", sorted.sumOf { it.optDouble("scrap", 0.0) })
             periods.put(i, period)
         }
+
+        fun rebuildLooseRows(existing: JSONArray, isCurrent: Boolean): JSONArray {
+            val kept = mutableListOf<JSONObject>()
+            for (i in 0 until existing.length()) {
+                val row = existing.optJSONObject(i) ?: continue
+                if (row.optString("source") != "StanControl") kept.add(row)
+            }
+            for (row in sourceShifts) {
+                val date = row.optString("date")
+                val belongsToClosedPeriod = (0 until periods.length()).any { index ->
+                    val p = periods.optJSONObject(index) ?: return@any false
+                    val start = p.optString("start", "")
+                    val end = p.optString("end", "")
+                    start.isNotBlank() && end.isNotBlank() && date >= start && date <= end
+                }
+                val belongsHere = !belongsToClosedPeriod &&
+                    if (isCurrent) periodStart.isNotBlank() && date >= periodStart
+                    else periodStart.isNotBlank() && date < periodStart
+                if (belongsHere) {
+                    kept.removeAll { it.optString("date") == date }
+                    kept.add(JSONObject(row.toString()))
+                }
+            }
+            val result = JSONArray()
+            kept.sortedBy { it.optString("date") }.forEach { result.put(it) }
+            return result
+        }
+
+        val rebuiltCurrent = rebuildLooseRows(current, true)
+        val rebuiltHistory = rebuildLooseRows(history, false)
         target.edit()
-            .putString("entries", "[]")
-            .putString("historical_entries", "[]")
+            .putString("entries", rebuiltCurrent.toString())
+            .putString("historical_entries", rebuiltHistory.toString())
             .putString("archive", periods.toString())
             .commit()
-
-        for ((date, cleanKg, scrapKg) in sourceShifts) {
-            syncShiftToProControl(date, cleanKg, scrapKg)
-        }
     }
 
     private fun displayDateToIso(displayDate: String): String? {
