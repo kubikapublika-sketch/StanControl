@@ -1,3 +1,5 @@
 Build trigger for combined PDF, Cash Control backup, period-close date picker, and receipt layout changes.
 
 Period sync fix commit 2ddb0f1
+
+IME scroll fix 32ae7a0
