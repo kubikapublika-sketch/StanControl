@@ -318,6 +318,7 @@ class MainActivity : ComponentActivity() {
         var showPreviousYears by remember { mutableStateOf(false) }
         var archiveYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
         var historicalDate by remember { mutableStateOf(today()) }
+        var historicalShipmentComment by remember { mutableStateOf("") }
         var historicalProfile by remember { mutableStateOf("Уголок 50") }
         var historicalMode by remember { mutableStateOf("Пачка") }
         var historicalWidth by remember { mutableStateOf("5") }
@@ -868,6 +869,15 @@ class MainActivity : ComponentActivity() {
                         val w = historicalLongDefectWeight.replace(',', '.').toDoubleOrNull()
                         if (w != null && w > 0 && w.isFinite()) { historicalLongDefects.add(LongDefect(historicalLongDefectType, w)); historicalLongDefectWeight = "" }
                     }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("ДОБАВИТЬ ДЛИННЫЙ БРАК") }
+                    Text("КОММЕНТАРИЙ ДЛЯ PDF", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = historicalShipmentComment,
+                        onValueChange = { historicalShipmentComment = it },
+                        label = { Text("Комментарий к старой смене") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4
+                    )
                     Card(Modifier.fillMaxWidth()) {
                         Text("Добавлено: пачек ${historicalPacks.size} · ${fmtWeight(historicalPacks.sumOf { it.weight })} кг | брак ${fmtWeight(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size} | длинный брак ${historicalLongDefects.size}", modifier = Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }
@@ -884,6 +894,7 @@ class MainActivity : ComponentActivity() {
                         if (!exists) {
                             val entry = JSONObject()
                                 .put("date", historicalDate).put("profile", historicalProfile)
+                                .put("comment", historicalShipmentComment.trim())
                                 .put("packTotal", historicalPacks.sumOf { it.weight })
                                 .put("defectTotal", historicalDefects.sumOf { it.weight })
                                 .put("packs", JSONArray().also { a -> historicalPacks.forEach { p -> a.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
@@ -895,6 +906,7 @@ class MainActivity : ComponentActivity() {
                             writeAutomaticBackup()
                             archiveYear = historicalDate.takeLast(4)
                             archiveDateFilter = historicalDate
+                            historicalShipmentComment = ""
                             screen = "archive"
                         } else {
                             android.widget.Toast.makeText(this@MainActivity, "За эту дату бланк уже есть. Выберите другую дату.", android.widget.Toast.LENGTH_LONG).show()
