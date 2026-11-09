@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
                     val todayPacks = prefs.getString("packs", "[]") ?: "[]"
                     val todayDefects = prefs.getString("defects", "[]") ?: "[]"
                     val todayPallets = prefs.getString("pallets", "[]") ?: "[]"
+                    val todayLongDefects = prefs.getString("long_defects", "[]") ?: "[]"
 
                     val currentArchive = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
                     val currentProfileNames = try { JSONArray(prefs.getString("profile_list", "[]")) } catch (_: Exception) { JSONArray() }
@@ -151,9 +152,10 @@ class MainActivity : ComponentActivity() {
                         val oldPacks = try { JSONArray(data.optString("packs", "[]")) } catch (_: Exception) { JSONArray() }
                         val oldDefects = try { JSONArray(data.optString("defects", "[]")) } catch (_: Exception) { JSONArray() }
                         val oldPallets = try { JSONArray(data.optString("pallets", "[]")) } catch (_: Exception) { JSONArray() }
+                        val oldLongDefects = try { JSONArray(data.optString("long_defects", "[]")) } catch (_: Exception) { JSONArray() }
                         val oldPackWeight = (0 until oldPacks.length()).sumOf { oldPacks.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
                         val oldDefectWeight = (0 until oldDefects.length()).sumOf { oldDefects.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
-                        val idle = oldPacks.length() == 0 && oldDefects.length() == 0 && oldPallets.length() == 0
+                        val idle = oldPacks.length() == 0 && oldDefects.length() == 0 && oldPallets.length() == 0 && oldLongDefects.length() == 0
                         mergedArchive.put(JSONObject()
                             .put("date", backupDate)
                             .put("profile", data.optString("profile", "Уголок 50"))
@@ -162,6 +164,7 @@ class MainActivity : ComponentActivity() {
                             .put("packs", oldPacks)
                             .put("defects", oldDefects)
                             .put("pallets", oldPallets)
+                            .put("longDefects", oldLongDefects)
                             .put("status", if (idle) "Простой" else "Завершена")
                             .put("autoClosed", true)
                             .put("closedAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())))
@@ -205,6 +208,7 @@ class MainActivity : ComponentActivity() {
                                 .putString("packs", todayPacks)
                                 .putString("defects", todayDefects)
                                 .putString("pallets", todayPallets)
+                                .putString("long_defects", todayLongDefects)
                             prefs.getString("profile_${key}_width", null)?.let { editor.putString("profile_${key}_width", it) }
                             prefs.getString("profile_${key}_rows", null)?.let { editor.putString("profile_${key}_rows", it) }
                             prefs.getString("profile_${key}_length", null)?.let { editor.putString("profile_${key}_length", it) }
@@ -219,6 +223,7 @@ class MainActivity : ComponentActivity() {
                                 .putString("packs", "[]")
                                 .putString("defects", "[]")
                                 .putString("pallets", "[]")
+                                .putString("long_defects", "[]")
                         }
                     }
 
@@ -262,6 +267,8 @@ class MainActivity : ComponentActivity() {
         var tare by remember { mutableStateOf("") }
         var defectType by remember { mutableStateOf("Резка") }
         var palletType by remember { mutableStateOf("Прокат") }
+        var longDefectType by remember { mutableStateOf("Прокат") }
+        var longDefectWeight by remember { mutableStateOf("") }
         var showSettings by remember { mutableStateOf(false) }
         var showHandoverDialog by remember { mutableStateOf(false) }
         var handoverText by remember { mutableStateOf(prefs.getString("shift_handover_text", "") ?: "") }
@@ -272,6 +279,7 @@ class MainActivity : ComponentActivity() {
         var editPack by remember { mutableStateOf(-1) }
         var editDefect by remember { mutableStateOf(-1) }
         var editPallet by remember { mutableStateOf(-1) }
+        var editLongDefect by remember { mutableStateOf(-1) }
         var editWeight by remember { mutableStateOf("") }
         var editRows by remember { mutableStateOf("") }
         var editWidth by remember { mutableStateOf("") }
@@ -301,10 +309,14 @@ class MainActivity : ComponentActivity() {
         val historicalPacks = remember { mutableStateListOf<Pack>() }
         val historicalDefects = remember { mutableStateListOf<Defect>() }
         val historicalPallets = remember { mutableStateListOf<Pallet>() }
+        val historicalLongDefects = remember { mutableStateListOf<LongDefect>() }
+        var historicalLongDefectType by remember { mutableStateOf("Прокат") }
+        var historicalLongDefectWeight by remember { mutableStateOf("") }
 
         val packs = remember { mutableStateListOf<Pack>().apply { addAll(readPacks()) } }
         val defects = remember { mutableStateListOf<Defect>().apply { addAll(readDefects()) } }
         val pallets = remember { mutableStateListOf<Pallet>().apply { addAll(readPallets()) } }
+        val longDefects = remember { mutableStateListOf<LongDefect>().apply { addAll(readLongDefects()) } }
         val packTotal = packs.sumOf { it.weight }
         val defectTotal = defects.sumOf { it.weight }
         val lastPack = packs.lastOrNull()
@@ -323,7 +335,9 @@ class MainActivity : ComponentActivity() {
             defects.forEach { d.put(JSONObject().put("t", it.type).put("w", it.weight)) }
             val a = JSONArray()
             pallets.forEach { a.put(JSONObject().put("t", it.type).put("g", it.gross).put("a", it.tare)) }
-            prefs.edit().putString("packs", p.toString()).putString("defects", d.toString()).putString("pallets", a.toString())
+            val ld = JSONArray()
+            longDefects.forEach { ld.put(JSONObject().put("t", it.type).put("w", it.weight)) }
+            prefs.edit().putString("packs", p.toString()).putString("defects", d.toString()).putString("pallets", a.toString()).putString("long_defects", ld.toString())
                 .putBoolean("active", active).putString("profile", profile).putInt("width", width.toIntOrNull() ?: 5)
                 .putString("profile_${profile.substringAfterLast(" ")}_length", length).putString("profile_${profile.substringAfterLast(" ")}_rows", rows).putString("profile_${profile.substringAfterLast(" ")}_width", width).putString("date", date).apply()
             writeAutomaticBackup()
@@ -358,6 +372,15 @@ class MainActivity : ComponentActivity() {
                 pallets.add(Pallet(palletType, g, t))
                 gross = ""
                 tare = ""
+                saveAll()
+            }
+        }
+
+        fun addLongDefect() {
+            val w = longDefectWeight.replace(',', '.').toDoubleOrNull() ?: return
+            if (w > 0.0 && w.isFinite()) {
+                longDefects.add(LongDefect(longDefectType, w))
+                longDefectWeight = ""
                 saveAll()
             }
         }
@@ -434,10 +457,10 @@ class MainActivity : ComponentActivity() {
                 }
                 "work" -> {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Пачка", "Брак", "Поддоны").forEach { item ->
+                        listOf("Пачка", "Брак", "Отгрузка").forEach { item ->
                             FilterChip(
-                                selected = mode == item,
-                                onClick = { mode = item },
+                                selected = (if (item == "Отгрузка") mode == "Поддоны" else mode == item),
+                                onClick = { mode = if (item == "Отгрузка") "Поддоны" else item },
                                 modifier = Modifier.weight(1f),
                                 label = { Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false) }
                             )
@@ -565,6 +588,16 @@ class MainActivity : ComponentActivity() {
                             OutlinedTextField(tare, { tare = it }, label = { Text("Тара, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Text("Нетто: " + fmt(((gross.replace(',', '.').toDoubleOrNull() ?: 0.0) - (tare.replace(',', '.').toDoubleOrNull() ?: 0.0)).coerceAtLeast(0.0)) + " кг", fontWeight = FontWeight.SemiBold)
                             Button(onClick = { addPallet() }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ДОБАВИТЬ ПОДДОН") }
+                            Divider()
+                            Text("ДЛИННЫЙ БРАК", fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("Прокат", "Резка").forEach { item ->
+                                    if (longDefectType == item) Button(onClick = { longDefectType = item }, modifier = Modifier.weight(1f).height(48.dp)) { Text(item) }
+                                    else OutlinedButton(onClick = { longDefectType = item }, modifier = Modifier.weight(1f).height(48.dp)) { Text(item) }
+                                }
+                            }
+                            OutlinedTextField(longDefectWeight, { longDefectWeight = it }, label = { Text("Чистый вес длинного брака, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            Button(onClick = { addLongDefect() }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("ДОБАВИТЬ ДЛИННЫЙ БРАК") }
                         }
                     }
                     OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Таблица") }
@@ -614,13 +647,27 @@ class MainActivity : ComponentActivity() {
                             if (showDefects) Text("Итого брак: " + fmtWeight(defectTotal) + " кг", fontWeight = FontWeight.Bold)
                         }
                         item {
-                            OutlinedButton(onClick = { showPallets = !showPallets }, modifier = Modifier.fillMaxWidth()) { Text("Поддоны (" + pallets.size + ")") }
+                            OutlinedButton(onClick = { showPallets = !showPallets }, modifier = Modifier.fillMaxWidth()) { Text("Отгрузка (" + pallets.size + ")") }
                             if (showPallets) pallets.forEachIndexed { index, p ->
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(p.type + ": " + fmtWeight(p.gross) + " - " + fmtWeight(p.tare) + " = " + fmtWeight(p.net) + " кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                                     TextButton(onClick = { editPallet = index; editGross = p.gross.toString(); editTare = p.tare.toString(); editType = p.type }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Изменить", fontSize = 12.sp, maxLines = 1) }
                                     TextButton(onClick = { deletePalletIndex = index }, modifier = Modifier.width(32.dp).height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
                                 }
+                            }
+                            if (showPallets) {
+                                Divider()
+                                Text("ДЛИННЫЙ БРАК", fontWeight = FontWeight.Bold)
+                                longDefects.forEachIndexed { index, d ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text("${index + 1}) ${d.type}: ${fmtWeight(d.weight)} кг", modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                        TextButton(onClick = { editLongDefect = index; editWeight = d.weight.toString(); editType = d.type }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Изменить", fontSize = 12.sp, maxLines = 1) }
+                                        TextButton(onClick = { longDefects.removeAt(index); saveAll() }, modifier = Modifier.width(32.dp).height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("🗑", color = MaterialTheme.colorScheme.error, fontSize = 16.sp, maxLines = 1) }
+                                    }
+                                }
+                                val rollingLong = longDefects.filter { it.type == "Прокат" }.sumOf { it.weight }
+                                val cuttingLong = longDefects.filter { it.type == "Резка" }.sumOf { it.weight }
+                                Text("Пр.: ${fmtWeight(rollingLong)} кг | Рез.: ${fmtWeight(cuttingLong)} кг | Всего: ${fmtWeight(rollingLong + cuttingLong)} кг", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -632,7 +679,7 @@ class MainActivity : ComponentActivity() {
                     Text("Архив производства", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     OutlinedButton(onClick = {
                         historicalDate = today()
-                        historicalPacks.clear(); historicalDefects.clear(); historicalPallets.clear()
+                        historicalPacks.clear(); historicalDefects.clear(); historicalPallets.clear(); historicalLongDefects.clear()
                         historicalWeight = ""; historicalGross = ""; historicalTare = ""
                         screen = "archive_new"
                     }, modifier = Modifier.fillMaxWidth()) { Text("Добавить старую смену") }
@@ -780,11 +827,23 @@ class MainActivity : ComponentActivity() {
                             }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
                         }
                     }
-                    Text("Добавлено: пачек ${historicalPacks.size} · ${fmtWeight(historicalPacks.sumOf { it.weight })} кг | брак ${fmtWeight(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text("Длинный брак", fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Прокат", "Резка").forEach { item ->
+                            OutlinedButton(onClick = { historicalLongDefectType = item }, modifier = Modifier.weight(1f)) { Text(if (historicalLongDefectType == item) "✓ $item" else item) }
+                        }
+                    }
+                    OutlinedTextField(historicalLongDefectWeight, { historicalLongDefectWeight = it }, label = { Text("Чистый вес, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Button(onClick = {
+                        val w = historicalLongDefectWeight.replace(',', '.').toDoubleOrNull()
+                        if (w != null && w > 0 && w.isFinite()) { historicalLongDefects.add(LongDefect(historicalLongDefectType, w)); historicalLongDefectWeight = "" }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Добавить длинный брак") }
+                    Text("Добавлено: пачек ${historicalPacks.size} · ${fmtWeight(historicalPacks.sumOf { it.weight })} кг | брак ${fmtWeight(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size} | длинный брак ${historicalLongDefects.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmtWeight(p.weight)} кг · К ${fmtCoefficient(p.coefficient)} · ${p.pieces} шт") }
                         itemsIndexed(historicalDefects) { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmtWeight(d.weight)} кг") }
                         itemsIndexed(historicalPallets) { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmtWeight(p.net)} кг") }
+                        itemsIndexed(historicalLongDefects) { i, d -> Text("Длинный брак ${i + 1}: ${d.type} · ${fmtWeight(d.weight)} кг") }
                     }
                     Button(onClick = {
                         val saved = JSONArray(prefs.getString("shifts_archive", "[]"))
@@ -798,6 +857,7 @@ class MainActivity : ComponentActivity() {
                                 .put("packs", JSONArray().also { a -> historicalPacks.forEach { p -> a.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
                                 .put("defects", JSONArray().also { a -> historicalDefects.forEach { d -> a.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                                 .put("pallets", JSONArray().also { a -> historicalPallets.forEach { p -> a.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
+                                .put("longDefects", JSONArray().also { a -> historicalLongDefects.forEach { d -> a.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                             saved.put(entry)
                             prefs.edit().putString("shifts_archive", saved.toString()).apply()
                             writeAutomaticBackup()
@@ -815,6 +875,7 @@ class MainActivity : ComponentActivity() {
                     val ap = shift.optJSONArray("packs") ?: JSONArray()
                     val ad = shift.optJSONArray("defects") ?: JSONArray()
                     val aa = shift.optJSONArray("pallets") ?: JSONArray()
+                    val ald = shift.optJSONArray("longDefects") ?: JSONArray()
                     Text(shift.optString("date") + " · " + shift.optString("profile"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         item { Text("ПАЧКИ", fontWeight = FontWeight.Bold) }
@@ -834,6 +895,11 @@ class MainActivity : ComponentActivity() {
                             val tareValue = item.optDouble("a")
                             Text(item.optString("t") + ": брутто " + fmtWeight(grossValue) + " · тара " + fmtWeight(tareValue) + " · нетто " + fmtWeight(grossValue - tareValue) + " кг")
                         }
+                        item { Text("ДЛИННЫЙ БРАК", fontWeight = FontWeight.Bold) }
+                        items(ald.length()) { i ->
+                            val item = ald.getJSONObject(i)
+                            Text("${i + 1}) ${item.optString("t")}: ${fmtWeight(item.optDouble("w"))} кг")
+                        }
                     }
                     OutlinedButton(onClick = {
                         val archivedPacks = (0 until ap.length()).map { i ->
@@ -846,7 +912,10 @@ class MainActivity : ComponentActivity() {
                         val archivedPallets = (0 until aa.length()).map { i ->
                             val item = aa.getJSONObject(i); Pallet(item.optString("t"), item.optDouble("g"), item.optDouble("a"))
                         }
-                        sharePdf(shift.optString("date"), shift.optString("profile"), archivedPacks, archivedDefects, archivedPallets)
+                        val archivedLongDefects = (0 until ald.length()).map { i ->
+                            val item = ald.getJSONObject(i); LongDefect(item.optString("t", "Прокат"), item.optDouble("w"))
+                        }
+                        sharePdf(shift.optString("date"), shift.optString("profile"), archivedPacks, archivedDefects, archivedPallets, archivedLongDefects)
                     }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                     OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("К архиву") }
                 }
@@ -1059,6 +1128,24 @@ class MainActivity : ComponentActivity() {
             editPallet = -1
         }) { Text("Сохранить") } })
 
+        if (editLongDefect >= 0) AlertDialog(onDismissRequest = { editLongDefect = -1 }, title = { Text("Изменить длинный брак") }, text = {
+            Column {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("Прокат", "Резка").forEach { item ->
+                        OutlinedButton(onClick = { editType = item }) { Text(if (editType == item) "✓ $item" else item) }
+                    }
+                }
+                OutlinedTextField(editWeight, { editWeight = it }, label = { Text("Чистый вес, кг") })
+            }
+        }, confirmButton = { TextButton(onClick = {
+            val w = editWeight.replace(',', '.').toDoubleOrNull()
+            if (w != null && w > 0 && w.isFinite() && editLongDefect in longDefects.indices) {
+                longDefects[editLongDefect] = LongDefect(editType, w)
+                saveAll()
+            }
+            editLongDefect = -1
+        }) { Text("Сохранить") } })
+
         if (confirmFinish) AlertDialog(onDismissRequest = { confirmFinish = false }, title = { Text("Завершить смену?") },
             text = { Text("Смена будет сохранена в архиве.") },
             confirmButton = { TextButton(onClick = {
@@ -1076,17 +1163,19 @@ class MainActivity : ComponentActivity() {
                     .put("packs", JSONArray().also { array -> packs.forEach { p -> array.put(JSONObject().put("w", p.weight).put("r", p.rows).put("n", p.pieces).put("k", p.coefficient).put("width", p.width).put("length", p.length)) } })
                     .put("defects", JSONArray().also { array -> defects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                     .put("pallets", JSONArray().also { array -> pallets.forEach { p -> array.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
+                    .put("longDefects", JSONArray().also { array -> longDefects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                 // Sync the completed shift before clearing StanControl's current data.
                 syncShiftToProControl(date, packTotal, defectTotal)
                 savedShifts.put(shift)
                 prefs.edit().putString("shifts_archive", savedShifts.toString())
                     .putString("archive", "Сохранено смен: " + savedShifts.length())
                     .putBoolean("active", false)
-                    .putString("packs", "[]").putString("defects", "[]").putString("pallets", "[]")
+                    .putString("packs", "[]").putString("defects", "[]").putString("pallets", "[]").putString("long_defects", "[]")
                     .apply()
                 packs.clear()
                 defects.clear()
                 pallets.clear()
+                longDefects.clear()
                 active = false
                 saveAll()
                 screen = "home"
@@ -1202,9 +1291,10 @@ class MainActivity : ComponentActivity() {
         val packs = try { JSONArray(prefs.getString("packs", "[]")) } catch (_: Exception) { JSONArray() }
         val defects = try { JSONArray(prefs.getString("defects", "[]")) } catch (_: Exception) { JSONArray() }
         val pallets = try { JSONArray(prefs.getString("pallets", "[]")) } catch (_: Exception) { JSONArray() }
+        val longDefects = try { JSONArray(prefs.getString("long_defects", "[]")) } catch (_: Exception) { JSONArray() }
         val packTotal = (0 until packs.length()).sumOf { packs.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
         val defectTotal = (0 until defects.length()).sumOf { defects.optJSONObject(it)?.optDouble("w", 0.0) ?: 0.0 }
-        val idle = packs.length() == 0 && defects.length() == 0 && pallets.length() == 0
+        val idle = packs.length() == 0 && defects.length() == 0 && pallets.length() == 0 && longDefects.length() == 0
 
         val savedShifts = try { JSONArray(prefs.getString("shifts_archive", "[]")) } catch (_: Exception) { JSONArray() }
         val alreadyArchived = (0 until savedShifts.length()).any {
@@ -1220,6 +1310,7 @@ class MainActivity : ComponentActivity() {
                 .put("packs", packs)
                 .put("defects", defects)
                 .put("pallets", pallets)
+                .put("longDefects", longDefects)
                 .put("status", if (idle) "Простой" else "Завершена")
                 .put("autoClosed", true)
                 .put("closedAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())))
@@ -1233,6 +1324,7 @@ class MainActivity : ComponentActivity() {
             .putString("packs", "[]")
             .putString("defects", "[]")
             .putString("pallets", "[]")
+            .putString("long_defects", "[]")
             .commit()
         writeAutomaticBackup()
         return true
@@ -1294,15 +1386,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+    private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>) {
         when (prefs.getString("pdf_template", "classic") ?: "classic") {
-            "grid" -> shareGridPdf(date, profile, packs, defects, pallets)
-            "original" -> shareOriginalPdf(date, profile, packs, defects, pallets)
-            else -> shareClassicPdf(date, profile, packs, defects, pallets)
+            "grid" -> shareGridPdf(date, profile, packs, defects, pallets, longDefects)
+            "original" -> shareOriginalPdf(date, profile, packs, defects, pallets, longDefects)
+            else -> shareClassicPdf(date, profile, packs, defects, pallets, longDefects)
         }
     }
 
-    private fun shareClassicPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+    private fun shareClassicPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>) {
         val pdf = PdfDocument()
         val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
         val canvas = page.canvas
@@ -1417,6 +1509,22 @@ class MainActivity : ComponentActivity() {
         total("ИТОГО ПОДДОНЫ РЕЗКА", "${fmtWeight(cuttingPallets.sumOf { it.net })} кг")
         total("ВСЕГО ПОДДОНЫ · НЕТТО", "${fmtWeight(pallets.sumOf { it.net })} кг")
 
+        section("5. ДЛИННЫЙ БРАК")
+        if (longDefects.isEmpty()) {
+            text("Записей нет", left + 8f, y + 13f, 8f)
+            line(y + 18f)
+            y += 18f
+        } else {
+            longDefects.forEachIndexed { i, item ->
+                text("${i + 1}) ${item.type}: ${fmtWeight(item.weight)} кг", left + 8f, y + 13f, 8f)
+                line(y + 18f)
+                y += 18f
+            }
+        }
+        val longRollingTotal = longDefects.filter { it.type == "Прокат" }.sumOf { it.weight }
+        val longCuttingTotal = longDefects.filter { it.type == "Резка" }.sumOf { it.weight }
+        total("Пр.: ${fmtWeight(longRollingTotal)} кг   |   Рез.: ${fmtWeight(longCuttingTotal)} кг   |   Всего: ${fmtWeight(longRollingTotal + longCuttingTotal)} кг", "")
+
         // A compact footer and border make the page read as a finished form.
         y += 3f
         line(y, 0xFF777777.toInt(), 1f)
@@ -1436,7 +1544,7 @@ class MainActivity : ComponentActivity() {
         }, "Поделиться PDF"))
     }
 
-    private fun shareGridPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+    private fun shareGridPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>) {
         val pdf = PdfDocument()
         val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
         val canvas = page.canvas
@@ -1488,6 +1596,7 @@ class MainActivity : ComponentActivity() {
         val rolling = pallets.filter { it.type == "Прокат" }
         val cuttingPallets = pallets.filter { it.type == "Резка" }
         val palletCount = maxOf(rolling.size, cuttingPallets.size)
+        val lowerRecordCount = maxOf(palletCount, longDefects.size)
         // Packs and defects are parallel lists: each starts at the first numbered row.
         val usedEntryRows = maxOf(packs.size, defects.size)
         val summaryRowHeight = 25f
@@ -1497,7 +1606,7 @@ class MainActivity : ComponentActivity() {
         val palletRowHeight = 13f
         val footerHeight = 7f + 34f + 39f + 14f
         val bottomLimit = 824f
-        val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
+        val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - lowerRecordCount * palletRowHeight - footerHeight
         // Production never exceeds 30 entries; keep at least 35 numbered rows on the sheet.
         // Use the reclaimed lower margin to give all 35 rows a taller, fixed height.
         val packRowHeight = 15.5f
@@ -1544,35 +1653,52 @@ class MainActivity : ComponentActivity() {
         cell(gridLeft + summaryPackWidth + summaryDefectWidth, y, summaryPercentWidth, summaryRowHeight, "Процент брака: ${String.format(Locale.getDefault(), "%.2f", rejectPercent)}%", true, 7.8f, true)
         y += summaryRowHeight + palletGap
 
-        val palletColGap = 8f
-        val palletColWidth = (tableWidth - palletColGap) / 2f
+        val lowerColGap = 6f
+        val lowerColWidth = (tableWidth - lowerColGap * 2f) / 3f
         fun palletSection(title: String, selected: List<Pallet>, startX: Float) {
-            cell(startX, y, palletColWidth, 17f, title, true, 7.2f, true)
+            cell(startX, y, lowerColWidth, 17f, title, true, 6.6f, true)
             var py = y + 17f
-            val c1 = 22f
-            val c2 = 88f
-            val c3 = 72f
-            val c4 = palletColWidth - c1 - c2 - c3
-            cell(startX, py, c1, 13f, "№", true, 6f, true)
-            cell(startX + c1, py, c2, 13f, "Общий вес", true, 6f, true)
-            cell(startX + c1 + c2, py, c3, 13f, "Тара", true, 6f, true)
-            cell(startX + c1 + c2 + c3, py, c4, 13f, "Чистый вес", true, 6f, true)
+            val c1 = 16f
+            val c2 = 52f
+            val c3 = 40f
+            val c4 = lowerColWidth - c1 - c2 - c3
+            cell(startX, py, c1, 13f, "№", true, 5.5f, true)
+            cell(startX + c1, py, c2, 13f, "Общий", true, 5.5f, true)
+            cell(startX + c1 + c2, py, c3, 13f, "Тара", true, 5.5f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, "Чистый", true, 5.5f, true)
             py += 13f
-            for (i in 0 until palletCount) {
-                val p = selected.getOrNull(i)
-                cell(startX, py, c1, 13f, if (p == null) "" else (i + 1).toString(), p != null, 7.2f, true)
-                cell(startX + c1, py, c2, 13f, p?.let { fmtWhole(it.gross) } ?: "", p != null, 7.2f, true)
-                cell(startX + c1 + c2, py, c3, 13f, p?.let { fmtWhole(it.tare) } ?: "", p != null, 7.2f, true)
-                cell(startX + c1 + c2 + c3, py, c4, 13f, p?.let { fmtWhole(it.net) } ?: "", p != null, 7.2f, true)
+            for (i in 0 until lowerRecordCount) {
+                val item = selected.getOrNull(i)
+                cell(startX, py, c1, 13f, if (item == null) "" else (i + 1).toString(), item != null, 6.1f, true)
+                cell(startX + c1, py, c2, 13f, item?.let { fmtWhole(it.gross) } ?: "", item != null, 6.1f, true)
+                cell(startX + c1 + c2, py, c3, 13f, item?.let { fmtWhole(it.tare) } ?: "", item != null, 6.1f, true)
+                cell(startX + c1 + c2 + c3, py, c4, 13f, item?.let { fmtWhole(it.net) } ?: "", item != null, 6.1f, true)
                 py += 13f
             }
             val netTotal = selected.sumOf { it.net }
-            cell(startX, py, c1 + c2 + c3, 13f, "Общий чистый вес", true, 6f, true)
-            cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 7.2f, true)
+            cell(startX, py, c1 + c2 + c3, 13f, "Итого нетто", true, 5.5f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 6.1f, true)
         }
-        palletSection("Поддоны прокат", rolling, left)
-        palletSection("Поддоны резка", cuttingPallets, left + palletColWidth + palletColGap)
-        y += 17f + 13f + palletCount * 13f + 13f + 7f
+        fun longDefectSection(startX: Float) {
+            cell(startX, y, lowerColWidth, 17f, "Длинный брак", true, 6.6f, true)
+            var py = y + 17f
+            for (i in 0 until lowerRecordCount) {
+                val item = longDefects.getOrNull(i)
+                val label = item?.let { "${i + 1}) ${it.type}: ${fmtWhole(it.weight)} кг" } ?: ""
+                cell(startX, py, lowerColWidth, 13f, label, item != null, 6.1f, true)
+                py += 13f
+            }
+            val rollingTotal = longDefects.filter { it.type == "Прокат" }.sumOf { it.weight }
+            val cuttingTotal = longDefects.filter { it.type == "Резка" }.sumOf { it.weight }
+            val miniWidth = lowerColWidth / 3f
+            cell(startX, py, miniWidth, 13f, "Пр.: ${fmtWhole(rollingTotal)} кг", true, 5.1f, true)
+            cell(startX + miniWidth, py, miniWidth, 13f, "Рез.: ${fmtWhole(cuttingTotal)} кг", true, 5.1f, true)
+            cell(startX + miniWidth * 2f, py, lowerColWidth - miniWidth * 2f, 13f, "Всего: ${fmtWhole(rollingTotal + cuttingTotal)} кг", true, 5.1f, true)
+        }
+        palletSection("Отгрузка прокат", rolling, left)
+        palletSection("Отгрузка резка", cuttingPallets, left + lowerColWidth + lowerColGap)
+        longDefectSection(left + (lowerColWidth + lowerColGap) * 2f)
+        y += 17f + 13f + lowerRecordCount * 13f + 13f + 7f
         drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
         drawHandoverSignature(canvas, paint)
 
@@ -1590,7 +1716,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // Exact blank production sheet. Its original 45 numbered rows and layout stay independent of the other PDF templates.
-    private fun shareOriginalPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>) {
+    private fun shareOriginalPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>) {
         val pdf = PdfDocument()
         val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
         val canvas = page.canvas
@@ -1691,5 +1817,9 @@ private fun drawHandoverSignature(canvas: android.graphics.Canvas, paint: Paint)
     private fun readPallets(): List<Pallet> {
         val a = JSONArray(prefs.getString("pallets", "[]"))
         return (0 until a.length()).map { val o = a.getJSONObject(it); Pallet(o.getString("t"), o.getDouble("g"), o.getDouble("a")) }
+    }
+    private fun readLongDefects(): List<LongDefect> {
+        val a = JSONArray(prefs.getString("long_defects", "[]"))
+        return (0 until a.length()).map { val o = a.getJSONObject(it); LongDefect(o.optString("t", "Прокат"), o.optDouble("w", 0.0)) }
     }
 }
