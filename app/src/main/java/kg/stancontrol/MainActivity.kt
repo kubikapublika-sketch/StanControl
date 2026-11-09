@@ -290,6 +290,7 @@ class MainActivity : ComponentActivity() {
         var palletType by remember { mutableStateOf("Прокат") }
         var longDefectType by remember { mutableStateOf("Прокат") }
         var longDefectWeight by remember { mutableStateOf("") }
+        var shipmentComment by remember { mutableStateOf(prefs.getString("shipment_comment", "") ?: "") }
         var showSettings by remember { mutableStateOf(false) }
         var showHandoverDialog by remember { mutableStateOf(false) }
         var handoverText by remember { mutableStateOf(prefs.getString("shift_handover_text", "") ?: "") }
@@ -360,7 +361,7 @@ class MainActivity : ComponentActivity() {
             longDefects.forEach { ld.put(JSONObject().put("t", it.type).put("w", it.weight)) }
             prefs.edit().putString("packs", p.toString()).putString("defects", d.toString()).putString("pallets", a.toString()).putString("long_defects", ld.toString())
                 .putBoolean("active", active).putString("profile", profile).putInt("width", width.toIntOrNull() ?: 5)
-                .putString("profile_${profile.substringAfterLast(" ")}_length", length).putString("profile_${profile.substringAfterLast(" ")}_rows", rows).putString("profile_${profile.substringAfterLast(" ")}_width", width).putString("date", date).apply()
+                .putString("profile_${profile.substringAfterLast(" ")}_length", length).putString("profile_${profile.substringAfterLast(" ")}_rows", rows).putString("profile_${profile.substringAfterLast(" ")}_width", width).putString("date", date).putString("shipment_comment", shipmentComment).apply()
             writeAutomaticBackup()
         }
 
@@ -441,8 +442,8 @@ class MainActivity : ComponentActivity() {
                                 if (archiveHasDate(date)) {
                                     android.widget.Toast.makeText(this@MainActivity, "Смена за сегодня уже есть в архиве.", android.widget.Toast.LENGTH_LONG).show()
                                 } else {
-                                    packs.clear(); defects.clear(); pallets.clear()
-                                    inputWeight = ""; gross = ""; tare = ""
+                                    packs.clear(); defects.clear(); pallets.clear(); longDefects.clear()
+                                    inputWeight = ""; gross = ""; tare = ""; longDefectWeight = ""; shipmentComment = ""
                                     active = true
                                     screen = "work"
                                     saveAll()
@@ -619,6 +620,8 @@ class MainActivity : ComponentActivity() {
                             }
                             OutlinedTextField(longDefectWeight, { longDefectWeight = it }, label = { Text("Чистый вес длинного брака, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Button(onClick = { addLongDefect() }, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("ДОБАВИТЬ ДЛИННЫЙ БРАК") }
+                             Divider()
+                             OutlinedTextField(value = shipmentComment, onValueChange = { shipmentComment = it; prefs.edit().putString("shipment_comment", it).apply() }, label = { Text("Комментарий для PDF") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                         }
                     }
                     OutlinedButton(onClick = { screen = "table" }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Таблица") }
@@ -693,7 +696,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Text("Пачки: " + fmtWeight(packTotal) + " кг    Брак: " + fmtWeight(defectTotal) + " кг")
-                    OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList(), longDefects.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
+                    OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList(), longDefects.toList(), shipmentComment) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                     OutlinedButton(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Вернуться к работе") }
                 }
                 "archive" -> {
@@ -936,7 +939,7 @@ class MainActivity : ComponentActivity() {
                         val archivedLongDefects = (0 until ald.length()).map { i ->
                             val item = ald.getJSONObject(i); LongDefect(item.optString("t", "Прокат"), item.optDouble("w"))
                         }
-                        sharePdf(shift.optString("date"), shift.optString("profile"), archivedPacks, archivedDefects, archivedPallets, archivedLongDefects)
+                        sharePdf(shift.optString("date"), shift.optString("profile"), archivedPacks, archivedDefects, archivedPallets, archivedLongDefects, shift.optString("comment", ""))
                     }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                     OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("К архиву") }
                 }
@@ -1185,6 +1188,7 @@ class MainActivity : ComponentActivity() {
                     .put("defects", JSONArray().also { array -> defects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
                     .put("pallets", JSONArray().also { array -> pallets.forEach { p -> array.put(JSONObject().put("t", p.type).put("g", p.gross).put("a", p.tare)) } })
                     .put("longDefects", JSONArray().also { array -> longDefects.forEach { d -> array.put(JSONObject().put("t", d.type).put("w", d.weight)) } })
+                    .put("comment", shipmentComment)
                 // Sync the completed shift before clearing StanControl's current data.
                 syncShiftToProControl(date, packTotal, defectTotal)
                 savedShifts.put(shift)
@@ -1192,11 +1196,13 @@ class MainActivity : ComponentActivity() {
                     .putString("archive", "Сохранено смен: " + savedShifts.length())
                     .putBoolean("active", false)
                     .putString("packs", "[]").putString("defects", "[]").putString("pallets", "[]").putString("long_defects", "[]")
+                    .putString("shipment_comment", "")
                     .apply()
                 packs.clear()
                 defects.clear()
                 pallets.clear()
                 longDefects.clear()
+                shipmentComment = ""
                 active = false
                 saveAll()
                 screen = "home"
@@ -1392,6 +1398,7 @@ class MainActivity : ComponentActivity() {
                 .put("defects", defects)
                 .put("pallets", pallets)
                 .put("longDefects", longDefects)
+                .put("comment", prefs.getString("shipment_comment", "") ?: "")
                 .put("status", if (idle) "Простой" else "Завершена")
                 .put("autoClosed", true)
                 .put("closedAt", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())))
@@ -1406,6 +1413,7 @@ class MainActivity : ComponentActivity() {
             .putString("defects", "[]")
             .putString("pallets", "[]")
             .putString("long_defects", "[]")
+            .putString("shipment_comment", "")
             .commit()
         writeAutomaticBackup()
         return true
@@ -1477,9 +1485,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>) {
+    private fun sharePdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>, comment: String = "") {
         when (prefs.getString("pdf_template", "classic") ?: "classic") {
-            "grid" -> shareGridPdf(date, profile, packs, defects, pallets, longDefects)
+            "grid" -> shareGridPdf(date, profile, packs, defects, pallets, longDefects, comment)
             "original" -> shareOriginalPdf(date, profile, packs, defects, pallets, longDefects)
             else -> shareClassicPdf(date, profile, packs, defects, pallets, longDefects)
         }
@@ -1635,7 +1643,7 @@ class MainActivity : ComponentActivity() {
         }, "Поделиться PDF"))
     }
 
-    private fun shareGridPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>) {
+    private fun shareGridPdf(date: String, profile: String, packs: List<Pack>, defects: List<Defect>, pallets: List<Pallet>, longDefects: List<LongDefect>, comment: String) {
         val pdf = PdfDocument()
         val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
         val canvas = page.canvas
@@ -1743,6 +1751,18 @@ class MainActivity : ComponentActivity() {
         cell(gridLeft + summaryPackWidth, y, summaryDefectWidth, summaryRowHeight, "Вес брака: ${fmtWhole(bad)} кг", true, 7.8f, true)
         cell(gridLeft + summaryPackWidth + summaryDefectWidth, y, summaryPercentWidth, summaryRowHeight, "Процент брака: ${String.format(Locale.getDefault(), "%.2f", rejectPercent)}%", true, 7.8f, true)
         y += summaryRowHeight + palletGap
+        val printableComment = comment.trim()
+        if (printableComment.isNotEmpty()) {
+            var commentSize = 8f
+            paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            while (commentSize > 5f) {
+                paint.textSize = commentSize
+                if (paint.measureText(printableComment) <= gridWidth - 12f) break
+                commentSize -= 0.5f
+            }
+            paint.textSize = commentSize
+            drawText(printableComment, gridLeft + (gridWidth - paint.measureText(printableComment)) / 2f, y - palletGap / 2f + 3f, commentSize)
+        }
 
         val lowerColGap = 6f
         val lowerColWidth = (tableWidth - lowerColGap * 2f) / 3f
