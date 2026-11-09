@@ -1656,47 +1656,52 @@ class MainActivity : ComponentActivity() {
         val lowerColGap = 6f
         val lowerColWidth = (tableWidth - lowerColGap * 2f) / 3f
         fun palletSection(title: String, selected: List<Pallet>, startX: Float) {
-            cell(startX, y, lowerColWidth, 17f, title, true, 6.6f, true)
+            cell(startX, y, lowerColWidth, 17f, title, true, 7.2f, true)
             var py = y + 17f
-            val c1 = 16f
+            val c1 = 18f
             val c2 = 52f
             val c3 = 40f
             val c4 = lowerColWidth - c1 - c2 - c3
-            cell(startX, py, c1, 13f, "№", true, 5.5f, true)
-            cell(startX + c1, py, c2, 13f, "Общий", true, 5.5f, true)
-            cell(startX + c1 + c2, py, c3, 13f, "Тара", true, 5.5f, true)
-            cell(startX + c1 + c2 + c3, py, c4, 13f, "Чистый", true, 5.5f, true)
+            cell(startX, py, c1, 13f, "№", true, 6.5f, true)
+            cell(startX + c1, py, c2, 13f, "Общий", true, 6.5f, true)
+            cell(startX + c1 + c2, py, c3, 13f, "Тара", true, 6.5f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, "Чистый", true, 6.5f, true)
             py += 13f
             for (i in 0 until lowerRecordCount) {
                 val item = selected.getOrNull(i)
-                cell(startX, py, c1, 13f, if (item == null) "" else (i + 1).toString(), item != null, 6.1f, true)
-                cell(startX + c1, py, c2, 13f, item?.let { fmtWhole(it.gross) } ?: "", item != null, 6.1f, true)
-                cell(startX + c1 + c2, py, c3, 13f, item?.let { fmtWhole(it.tare) } ?: "", item != null, 6.1f, true)
-                cell(startX + c1 + c2 + c3, py, c4, 13f, item?.let { fmtWhole(it.net) } ?: "", item != null, 6.1f, true)
+                cell(startX, py, c1, 13f, if (item == null) "" else (i + 1).toString(), item != null, 7.0f, true)
+                cell(startX + c1, py, c2, 13f, item?.let { fmtWhole(it.gross) } ?: "", item != null, 7.0f, true)
+                cell(startX + c1 + c2, py, c3, 13f, item?.let { fmtWhole(it.tare) } ?: "", item != null, 7.0f, true)
+                cell(startX + c1 + c2 + c3, py, c4, 13f, item?.let { fmtWhole(it.net) } ?: "", item != null, 7.0f, true)
                 py += 13f
             }
             val netTotal = selected.sumOf { it.net }
-            cell(startX, py, c1 + c2 + c3, 13f, "Итого нетто", true, 5.5f, true)
-            cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 6.1f, true)
+            cell(startX, py, c1 + c2 + c3, 13f, "Итого нетто", true, 6.2f, true)
+            cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 7.0f, true)
         }
         fun longDefectSection(startX: Float) {
-            cell(startX, y, lowerColWidth, 17f, "Длинный брак", true, 6.6f, true)
+            cell(startX, y, lowerColWidth, 17f, "Длинный брак", true, 7.2f, true)
             var py = y + 17f
+            val numberWidth = 18f
+            cell(startX, py, numberWidth, 13f, "№", true, 6.5f, true)
+            cell(startX + numberWidth, py, lowerColWidth - numberWidth, 13f, "Вид / вес, кг", true, 6.5f, true)
+            py += 13f
             for (i in 0 until lowerRecordCount) {
                 val item = longDefects.getOrNull(i)
-                val label = item?.let { "${i + 1}) ${it.type}: ${fmtWhole(it.weight)} кг" } ?: ""
-                cell(startX, py, lowerColWidth, 13f, label, item != null, 6.1f, true)
+                cell(startX, py, numberWidth, 13f, if (item == null) "" else (i + 1).toString(), item != null, 7.0f, true)
+                val label = item?.let { "${it.type}: ${fmtWhole(it.weight)}" } ?: ""
+                cell(startX + numberWidth, py, lowerColWidth - numberWidth, 13f, label, item != null, 7.0f, true)
                 py += 13f
             }
             val rollingTotal = longDefects.filter { it.type == "Прокат" }.sumOf { it.weight }
             val cuttingTotal = longDefects.filter { it.type == "Резка" }.sumOf { it.weight }
             val miniWidth = lowerColWidth / 3f
-            cell(startX, py, miniWidth, 13f, "Пр.: ${fmtWhole(rollingTotal)} кг", true, 5.1f, true)
-            cell(startX + miniWidth, py, miniWidth, 13f, "Рез.: ${fmtWhole(cuttingTotal)} кг", true, 5.1f, true)
-            cell(startX + miniWidth * 2f, py, lowerColWidth - miniWidth * 2f, 13f, "Всего: ${fmtWhole(rollingTotal + cuttingTotal)} кг", true, 5.1f, true)
+            cell(startX, py, miniWidth, 13f, "Прокат: ${fmtWhole(rollingTotal)}", true, 5.8f, true)
+            cell(startX + miniWidth, py, miniWidth, 13f, "Резка: ${fmtWhole(cuttingTotal)}", true, 5.8f, true)
+            cell(startX + miniWidth * 2f, py, lowerColWidth - miniWidth * 2f, 13f, "Всего: ${fmtWhole(rollingTotal + cuttingTotal)}", true, 5.8f, true)
         }
-        palletSection("Отгрузка прокат", rolling, left)
-        palletSection("Отгрузка резка", cuttingPallets, left + lowerColWidth + lowerColGap)
+        palletSection("Поддоны прокат", rolling, left)
+        palletSection("Поддоны резка", cuttingPallets, left + lowerColWidth + lowerColGap)
         longDefectSection(left + (lowerColWidth + lowerColGap) * 2f)
         y += 17f + 13f + lowerRecordCount * 13f + 13f + 7f
         drawText("Примечание: ____________________________________________", left + 4f, y + 10f, 6.5f)
