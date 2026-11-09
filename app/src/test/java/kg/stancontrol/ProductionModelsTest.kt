@@ -37,6 +37,13 @@ class ProductionModelsTest {
     }
 
     @Test
+    fun longDefectStoresSelectedProductionTypeAndCleanWeight() {
+        val defect = LongDefect(type = "Резка", weight = 2_345.0)
+        assertEquals("Резка", defect.type)
+        assertEquals(2_345.0, defect.weight, 0.000001)
+    }
+
+    @Test
     fun productionEntryRetainsItsPersistedValues() {
         val entry = ProductionEntry(
             date = "2026-11-07",
