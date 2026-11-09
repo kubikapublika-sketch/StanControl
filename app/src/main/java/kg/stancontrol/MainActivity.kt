@@ -672,7 +672,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Text("Пачки: " + fmtWeight(packTotal) + " кг    Брак: " + fmtWeight(defectTotal) + " кг")
-                    OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
+                    OutlinedButton(onClick = { sharePdf(date, profile, packs.toList(), defects.toList(), pallets.toList(), longDefects.toList()) }, modifier = Modifier.fillMaxWidth()) { Text("Поделиться PDF") }
                     OutlinedButton(onClick = { screen = "work" }, modifier = Modifier.fillMaxWidth()) { Text("Вернуться к работе") }
                 }
                 "archive" -> {
