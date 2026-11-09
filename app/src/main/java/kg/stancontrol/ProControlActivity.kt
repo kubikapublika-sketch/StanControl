@@ -510,70 +510,59 @@ class ProControlActivity : Activity() {
     }
 
     private fun closePeriod() {
-        var selectedEnd = dateFormat.format(Date())
-        val dateButton = Button(this).apply {
-            text = "Дата закрытия: ${formatDate(selectedEnd)}"
-            isAllCaps = false
-            setOnClickListener {
-                showDatePicker(selectedEnd) { picked ->
-                    if (picked < periodStart || picked > dateFormat.format(Date())) {
-                        toast("Выбери дату от начала текущего периода до сегодня")
-                    } else {
-                        selectedEnd = picked
-                        text = "Дата закрытия: ${formatDate(selectedEnd)}"
-                    }
-                }
+        val today = dateFormat.format(Date())
+        val now = java.util.Calendar.getInstance()
+        val picker = DatePickerDialog(this, { _, year, month, day ->
+            val calendar = java.util.Calendar.getInstance().apply { set(year, month, day) }
+            val end = dateFormat.format(calendar.time)
+            if (end < periodStart || end > today) {
+                toast("Дата закрытия должна быть внутри текущего периода")
+                return@DatePickerDialog
             }
-        }
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(8), dp(20), 0)
-            addView(label("Выбери последний день периода. Более поздние записи останутся в текущем периоде.", 13f, 0xFF68758A.toInt()))
-            addView(dateButton, matchWrap())
-        }
+            confirmClosePeriod(end)
+        }, now.get(java.util.Calendar.YEAR), now.get(java.util.Calendar.MONTH),
+            now.get(java.util.Calendar.DAY_OF_MONTH))
+        picker.datePicker.minDate = dateFormat.parse(periodStart)?.time ?: Date().time
+        picker.datePicker.maxDate = Date().time
+        picker.setTitle("Выбери последний день периода")
+        picker.show()
+    }
+
+    private fun confirmClosePeriod(end: String) {
+        val closingEntries = entries.filter { it.date >= periodStart && it.date <= end }
+        val remainingEntries = entries.filter { it.date > end }.toMutableList()
+        val clean = closingEntries.sumOf { it.clean }
+        val scrap = closingEntries.sumOf { it.scrap }
+        val pay = clean * cleanRate + scrap * scrapRate
+        val days = calendarDaysBetween(periodStart, end)
+        val average = if (days > 0) pay / days else 0.0
         AlertDialog.Builder(this)
             .setTitle("Закрыть расчётный период?")
-            .setView(content)
+            .setMessage("Период: " + formatDate(periodStart) + " – " + formatDate(end) +
+                "\nЧистая продукция: " + qty(clean) + " кг\nБрак: " + qty(scrap) + " кг" +
+                "\nНачислено: " + money(pay) + " сом\nСреднее за день: " + money(average) +
+                " сом ($days календарных дней)\n\nЗаписи до выбранной даты попадут в архив. Более поздние записи останутся в новом периоде.")
             .setNegativeButton("Отмена", null)
-            .setPositiveButton("Продолжить") { _, _ ->
-                val closingEntries = entries.filter { it.date <= selectedEnd }.sortedBy { it.date }
-                val remainingEntries = entries.filter { it.date > selectedEnd }.toMutableList()
-                val clean = closingEntries.sumOf { it.clean }
-                val scrap = closingEntries.sumOf { it.scrap }
-                val pay = clean * cleanRate + scrap * scrapRate
-                val days = calendarDaysBetween(periodStart, selectedEnd)
-                val average = if (days > 0) pay / days else 0.0
-                AlertDialog.Builder(this)
-                    .setTitle("Подтвердить закрытие?")
-                    .setMessage("Период: " + formatDate(periodStart) + " – " + formatDate(selectedEnd) +
-                        "\nЧистая продукция: " + qty(clean) + " кг\nБрак: " + qty(scrap) + " кг" +
-                        "\nНачислено: " + money(pay) + " сом\nСреднее за день: " + money(average) +
-                        " сом (" + days + " календарных дней)" +
-                        "\n\nЗаписей в архиве: " + closingEntries.size +
-                        "\nЗаписи после выбранной даты останутся в новом периоде.")
-                    .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Закрыть") { _, _ ->
-                        val archive = JSONArray(prefs.getString("archive", "[]") ?: "[]")
-                        val recordArray = JSONArray()
-                        closingEntries.forEach { e ->
-                            recordArray.put(JSONObject().put("date", e.date).put("clean", e.clean)
-                                .put("scrap", e.scrap).put("note", e.note))
-                        }
-                        val number = nextPeriodNumber(archive)
-                        archive.put(JSONObject().put("number", number).put("name", "Период $number")
-                            .put("start", periodStart).put("end", selectedEnd)
-                            .put("clean", clean).put("scrap", scrap).put("records", recordArray)
-                            .put("open", false))
-                        val nextStart = nextCalendarDate(selectedEnd)
-                        entries = remainingEntries
-                        repository.saveEntries(entries)
-                        prefs.edit().putString("archive", archive.toString())
-                            .putString("period_start", nextStart).commit()
-                        periodStart = nextStart
-                        selectedArchiveIndex = -1
-                        toast("Период закрыт по выбранную дату и сохранён в архив")
-                        render()
-                    }.show()
+            .setPositiveButton("Закрыть") { _, _ ->
+                val archive = JSONArray(prefs.getString("archive", "[]") ?: "[]")
+                val recordArray = JSONArray()
+                closingEntries.sortedBy { it.date }.forEach { e ->
+                    recordArray.put(JSONObject().put("date", e.date).put("clean", e.clean)
+                        .put("scrap", e.scrap).put("note", e.note))
+                }
+                val number = nextPeriodNumber(archive)
+                archive.put(JSONObject().put("number", number).put("name", "Период $number")
+                    .put("start", periodStart).put("end", end)
+                    .put("clean", clean).put("scrap", scrap).put("records", recordArray))
+                val nextStart = nextCalendarDate(end)
+                entries = remainingEntries
+                repository.saveEntries(entries)
+                prefs.edit().putString("archive", archive.toString())
+                    .putString("period_start", nextStart).commit()
+                periodStart = nextStart
+                selectedArchiveIndex = -1
+                toast("Период закрыт по выбранную дату. Более поздние записи сохранены.")
+                render()
             }.show()
     }
 
