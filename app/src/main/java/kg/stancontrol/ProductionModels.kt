@@ -39,3 +39,9 @@ internal data class ProductionEntry(
     val scrap: Double,
     val note: String
 )
+
+/** A direct clean-weight record for long defects, separate from pallet weights. */
+data class LongDefect(
+    val type: String,
+    val weight: Double
+)
