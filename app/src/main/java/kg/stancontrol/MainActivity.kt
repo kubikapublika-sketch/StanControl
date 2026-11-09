@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -30,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONArray
@@ -77,6 +80,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MainScreen() {
+        val keyboardController = LocalSoftwareKeyboardController.current
         val restoreBackupLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.OpenDocument()
         ) { uri ->
@@ -825,20 +829,20 @@ class MainActivity : ComponentActivity() {
                             }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("ДОБАВИТЬ БРАК") }
                         }
                         else -> {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 listOf("Прокат", "Резка").forEach { item ->
                                     if (historicalPalletType == item) {
                                         Button(
                                             onClick = { historicalPalletType = item },
-                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            modifier = Modifier.weight(1f).height(48.dp),
                                             contentPadding = PaddingValues(horizontal = 4.dp)
                                         ) {
-                                            Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+                                            Text("✓ $item", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
                                         }
                                     } else {
                                         OutlinedButton(
                                             onClick = { historicalPalletType = item },
-                                            modifier = Modifier.weight(1f).height(54.dp),
+                                            modifier = Modifier.weight(1f).height(48.dp),
                                             contentPadding = PaddingValues(horizontal = 4.dp)
                                         ) {
                                             Text(item, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
@@ -864,7 +868,7 @@ class MainActivity : ComponentActivity() {
                             else OutlinedButton(onClick = { historicalLongDefectType = item }, modifier = Modifier.weight(1f).height(48.dp)) { Text(item) }
                         }
                     }
-                    OutlinedTextField(historicalLongDefectWeight, { historicalLongDefectWeight = it }, label = { Text("Чистый вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(historicalLongDefectWeight, { historicalLongDefectWeight = it }, label = { Text("Чистый вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }), modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Button(onClick = {
                         val w = historicalLongDefectWeight.replace(',', '.').toDoubleOrNull()
                         if (w != null && w > 0 && w.isFinite()) { historicalLongDefects.add(LongDefect(historicalLongDefectType, w)); historicalLongDefectWeight = "" }
