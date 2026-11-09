@@ -1700,20 +1700,13 @@ class MainActivity : ComponentActivity() {
         val usedEntryRows = maxOf(packs.size, defects.size)
         val summaryRowHeight = 25f
         val palletGap = 28f
-        val summaryHeight = 5f + summaryRowHeight + palletGap
-        val palletHeaderHeight = 17f + 13f + 13f
-        val palletRowHeight = 13f
-        val footerHeight = 7f + 34f + 39f + 14f
         val bottomLimit = 824f
-        val availableForPackRows = bottomLimit - y - summaryHeight - palletHeaderHeight - lowerRecordCount * palletRowHeight - footerHeight
-        // Production never exceeds 30 entries; keep at least 35 numbered rows on the sheet.
-        // Use the reclaimed lower margin to give all 35 rows a taller, fixed height.
-        val packRowHeight = 15.5f
-        val totalRowsSpace = bottomLimit + 56.7f - y - summaryHeight - palletHeaderHeight - palletCount * palletRowHeight - footerHeight
-        val rowCount = maxOf(35, usedEntryRows)
-        val actualRowHeight = if (rowCount > 0) {
-            (totalRowsSpace / rowCount).coerceAtMost(packRowHeight).coerceAtLeast(7.0f)
-        } else packRowHeight
+        // Keep 33 numbered rows above and calculate their height from the real
+        // lower-column content, so the pallet and long-defect tables stay on-page.
+        val rowCount = maxOf(33, usedEntryRows)
+        val lowerSectionHeight = 17f + 13f + lowerRecordCount * 13f + 13f + 7f
+        val availableForPackRows = bottomLimit - y - 5f - summaryRowHeight - palletGap - lowerSectionHeight - 8f
+        val actualRowHeight = (availableForPackRows / rowCount).coerceAtLeast(7.0f)
 
         val lengths = listOf(6, 5, 4, 3, 2)
         for (i in 0 until rowCount) {
@@ -1751,17 +1744,17 @@ class MainActivity : ComponentActivity() {
         cell(gridLeft + summaryPackWidth, y, summaryDefectWidth, summaryRowHeight, "Вес брака: ${fmtWhole(bad)} кг", true, 7.8f, true)
         cell(gridLeft + summaryPackWidth + summaryDefectWidth, y, summaryPercentWidth, summaryRowHeight, "Процент брака: ${String.format(Locale.getDefault(), "%.2f", rejectPercent)}%", true, 7.8f, true)
         y += summaryRowHeight + palletGap
-        val printableComment = comment.trim()
+        val printableComment = comment.trim().uppercase(Locale.getDefault())
         if (printableComment.isNotEmpty()) {
-            var commentSize = 8f
-            paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-            while (commentSize > 5f) {
+            var commentSize = 9.5f
+            paint.typeface = android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.NORMAL)
+            while (commentSize > 6f) {
                 paint.textSize = commentSize
                 if (paint.measureText(printableComment) <= gridWidth - 12f) break
                 commentSize -= 0.5f
             }
             paint.textSize = commentSize
-            drawText(printableComment, gridLeft + (gridWidth - paint.measureText(printableComment)) / 2f, y - palletGap / 2f + 3f, commentSize)
+            drawText(printableComment, gridLeft + (gridWidth - paint.measureText(printableComment)) / 2f, y - palletGap / 2f + 3f, commentSize, true)
         }
 
         val lowerColGap = 6f
