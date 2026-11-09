@@ -96,8 +96,12 @@ class ProControlActivity : Activity() {
         root.addView(navRow2)
         root.addView(label("Учёт тоннажа и расчёт заработка", 13f, 0xFF68758A.toInt()))
 
-        val cleanTotal = entries.sumOf { it.clean }
-        val scrapTotal = entries.sumOf { it.scrap }
+        // Current-period totals are strictly bounded by the day after the
+        // latest red closing date. Old restored rows may remain in storage,
+        // but must never leak into the open period.
+        val currentEntries = entries.filter { it.date >= periodStart }
+        val cleanTotal = currentEntries.sumOf { it.clean }
+        val scrapTotal = currentEntries.sumOf { it.scrap }
         val totalTonnage = cleanTotal + scrapTotal
         val scrapPercent = if (totalTonnage > 0.0) scrapTotal / totalTonnage * 100.0 else 0.0
         val earnings = cleanTotal * cleanRate + scrapTotal * scrapRate
@@ -117,7 +121,7 @@ class ProControlActivity : Activity() {
         summary.addView(label(money(earnings) + " сом", 25f, 0xFF087B58.toInt(), true))
         summary.addView(label("Средний заработок в календарный день", 13f, 0xFF68758A.toInt()))
         summary.addView(label(money(averagePerDay) + " сом/день", 19f, 0xFF1557A6.toInt(), true))
-        summary.addView(label("Календарных дней: $days · Смен внесено: " + entries.size, 12f, 0xFF68758A.toInt()))
+        summary.addView(label("Календарных дней: $days · Смен внесено: " + currentEntries.size, 12f, 0xFF68758A.toInt()))
         root.addView(summary)
         val calendarCard = card()
         val monthHeader = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -211,10 +215,10 @@ class ProControlActivity : Activity() {
         val listHeader = label("Записи текущего периода", 19f, 0xFF17243A.toInt(), true)
         listHeader.setPadding(0, dp(14), 0, dp(8))
         root.addView(listHeader)
-        if (entries.isEmpty()) {
+        if (currentEntries.isEmpty()) {
             root.addView(label("Пока нет записей в текущем периоде.", 14f, 0xFF68758A.toInt()))
         } else {
-            entries.sortedByDescending { it.date }.forEach { entry ->
+            currentEntries.sortedByDescending { it.date }.forEach { entry ->
                 val row = card()
                 row.addView(label(formatDate(entry.date), 15f, 0xFF17243A.toInt(), true))
                 row.addView(label("Чистая: " + qty(entry.clean) + " кг · Брак: " + qty(entry.scrap) + " кг", 13f, 0xFF34445B.toInt()))
@@ -282,8 +286,8 @@ class ProControlActivity : Activity() {
         var periodClean = 0.0
         var periodScrap = 0.0
         if (selectedDate >= periodStart && selectedDate <= dateFormat.format(Date())) {
-            periodClean = entries.sumOf { it.clean }
-            periodScrap = entries.sumOf { it.scrap }
+            periodClean = entries.filter { it.date >= periodStart }.sumOf { it.clean }
+            periodScrap = entries.filter { it.date >= periodStart }.sumOf { it.scrap }
         } else {
             val archive = JSONArray(prefs.getString("archive", "[]") ?: "[]")
             var matchingRecords: JSONArray? = null
