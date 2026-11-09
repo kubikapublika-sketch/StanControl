@@ -55,11 +55,14 @@ class ProControlActivity : Activity() {
         }
         archiveEditing = prefs.getBoolean("archive_editing", false)
         entries = repository.loadEntries()
-        val todayForMigration = dateFormat.format(Date())
+        // Legacy migration is allowed only before the first period is archived.
+        // Never move the current period boundary backwards after a user closes a period:
+        // doing so pulls old shifts back into the current totals on the next app launch.
+        val existingPeriods = try { JSONArray(prefs.getString("archive", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
         val earliestCurrentEntry = entries.minOfOrNull { it.date }
-        if (earliestCurrentEntry != null && earliestCurrentEntry < periodStart) {
+        if (existingPeriods.length() == 0 && earliestCurrentEntry != null && earliestCurrentEntry < periodStart) {
             periodStart = earliestCurrentEntry
-            prefs.edit().putString("period_start", periodStart).apply()
+            prefs.edit().putString("period_start", periodStart).commit()
         }
         render()
     }
