@@ -811,17 +811,17 @@ class MainActivity : ComponentActivity() {
                                     historicalPacks.add(Pack(w, r, n, round(w / (n * le) * 10.0) / 10.0, wi, le))
                                     historicalWeight = ""
                                 }
-                            }, modifier = Modifier.fillMaxWidth()) { Text("Добавить пачку") }
+                            }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("ДОБАВИТЬ ПАЧКУ") }
                         }
                         "Брак" -> {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 listOf("Резка", "Металлолом").forEach { t -> FilterChip(historicalDefectType == t, { historicalDefectType = t }, label = { Text(t) }) }
                             }
-                            OutlinedTextField(historicalWeight, { historicalWeight = it }, label = { Text("Вес брака, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(historicalWeight, { historicalWeight = it }, label = { Text("Вес брака, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Button(onClick = {
                                 val w = historicalWeight.replace(',', '.').toDoubleOrNull()
                                 if (w != null && w > 0) { historicalDefects.add(Defect(historicalDefectType, w)); historicalWeight = "" }
-                            }, modifier = Modifier.fillMaxWidth()) { Text("Добавить брак") }
+                            }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("ДОБАВИТЬ БРАК") }
                         }
                         else -> {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -845,15 +845,15 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            OutlinedTextField(historicalGross, { historicalGross = it }, label = { Text("Брутто, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                            OutlinedTextField(historicalTare, { historicalTare = it }, label = { Text("Тара, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(historicalGross, { historicalGross = it }, label = { Text("Брутто, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(historicalTare, { historicalTare = it }, label = { Text("Тара, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                             Button(onClick = {
                                 val g = historicalGross.replace(',', '.').toDoubleOrNull()
                                 val t = historicalTare.replace(',', '.').toDoubleOrNull()
                                 if (g != null && t != null && g > t && t >= 0) {
                                     historicalPallets.add(Pallet(historicalPalletType, g, t)); historicalGross = ""; historicalTare = ""
                                 }
-                            }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
+                            }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("ДОБАВИТЬ ПОДДОН") }
                         }
                     }
                     Text("ДЛИННЫЙ БРАК", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -899,8 +899,8 @@ class MainActivity : ComponentActivity() {
                         } else {
                             android.widget.Toast.makeText(this@MainActivity, "За эту дату бланк уже есть. Выберите другую дату.", android.widget.Toast.LENGTH_LONG).show()
                         }
-                    }, modifier = Modifier.fillMaxWidth()) { Text("СОХРАНИТЬ В АРХИВ") }
-                    OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
+                    }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("СОХРАНИТЬ В АРХИВ") }
+                    OutlinedButton(onClick = { screen = "archive" }, modifier = Modifier.fillMaxWidth().height(54.dp)) { Text("ОТМЕНА") }
                 }
                 "archive_detail" -> {
                     val shift = JSONObject(archiveShiftJson ?: "{}")
