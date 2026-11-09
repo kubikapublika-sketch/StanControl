@@ -765,7 +765,7 @@ class MainActivity : ComponentActivity() {
                     OutlinedButton(onClick = { screen = "home" }, modifier = Modifier.fillMaxWidth()) { Text("Назад") }
                 }
                 "archive_new" -> {
-                    Text("Новый бланк за прошлую дату", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Новый бланк за прошлую дату", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     OutlinedButton(onClick = {
                         val cal = Calendar.getInstance()
                         try { cal.time = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).parse(historicalDate) ?: Date() } catch (_: Exception) {}
@@ -773,22 +773,27 @@ class MainActivity : ComponentActivity() {
                             historicalDate = String.format(Locale.getDefault(), "%02d.%02d.%04d", d, m + 1, y)
                         }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
                     }, modifier = Modifier.fillMaxWidth()) { Text("Дата: $historicalDate · выбрать") }
-                    Text("Профиль")
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("ПРОФИЛЬ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         profileNames.forEach { p ->
-                            FilterChip(selected = historicalProfile == p, onClick = {
+                            val selected = historicalProfile == p
+                            val selectProfile = {
                                 historicalProfile = p
                                 val key = p.substringAfterLast(" ")
                                 val defaultWidth = when (p) { "Уголок 50" -> "5"; "Уголок 40" -> "7"; "Уголок 30" -> "6"; else -> "5" }
                                 historicalWidth = prefs.getString("profile_${key}_width", defaultWidth) ?: defaultWidth
                                 historicalRows = prefs.getString("profile_${key}_rows", if (p == "Уголок 40") "20" else "15") ?: "15"
                                 historicalLength = prefs.getString("profile_${key}_length", "6") ?: "6"
-                            }, label = { Text(p) })
+                            }
+                            if (selected) Button(onClick = selectProfile, modifier = Modifier.weight(1f).height(48.dp)) { Text(p) }
+                            else OutlinedButton(onClick = selectProfile, modifier = Modifier.weight(1f).height(48.dp)) { Text(p) }
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Пачка", "Брак", "Поддоны").forEach { m ->
-                            FilterChip(selected = historicalMode == m, onClick = { historicalMode = m }, label = { Text(m) })
+                            val selected = historicalMode == m
+                            if (selected) Button(onClick = { historicalMode = m }, modifier = Modifier.weight(1f).height(48.dp), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(m, maxLines = 1) }
+                            else OutlinedButton(onClick = { historicalMode = m }, modifier = Modifier.weight(1f).height(48.dp), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(m, maxLines = 1) }
                         }
                     }
                     when (historicalMode) {
@@ -851,23 +856,26 @@ class MainActivity : ComponentActivity() {
                             }, modifier = Modifier.fillMaxWidth()) { Text("Добавить поддон") }
                         }
                     }
-                    Text("Длинный брак", fontWeight = FontWeight.Bold)
+                    Text("ДЛИННЫЙ БРАК", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Прокат", "Резка").forEach { item ->
-                            OutlinedButton(onClick = { historicalLongDefectType = item }, modifier = Modifier.weight(1f)) { Text(if (historicalLongDefectType == item) "✓ $item" else item) }
+                            if (historicalLongDefectType == item) Button(onClick = { historicalLongDefectType = item }, modifier = Modifier.weight(1f).height(48.dp)) { Text("✓ $item") }
+                            else OutlinedButton(onClick = { historicalLongDefectType = item }, modifier = Modifier.weight(1f).height(48.dp)) { Text(item) }
                         }
                     }
-                    OutlinedTextField(historicalLongDefectWeight, { historicalLongDefectWeight = it }, label = { Text("Чистый вес, кг") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(historicalLongDefectWeight, { historicalLongDefectWeight = it }, label = { Text("Чистый вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Button(onClick = {
                         val w = historicalLongDefectWeight.replace(',', '.').toDoubleOrNull()
                         if (w != null && w > 0 && w.isFinite()) { historicalLongDefects.add(LongDefect(historicalLongDefectType, w)); historicalLongDefectWeight = "" }
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Добавить длинный брак") }
-                    Text("Добавлено: пачек ${historicalPacks.size} · ${fmtWeight(historicalPacks.sumOf { it.weight })} кг | брак ${fmtWeight(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size} | длинный брак ${historicalLongDefects.size}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        itemsIndexed(historicalPacks) { i, p -> Text("Пачка ${i + 1}: ${fmtWeight(p.weight)} кг · К ${fmtCoefficient(p.coefficient)} · ${p.pieces} шт") }
-                        itemsIndexed(historicalDefects) { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmtWeight(d.weight)} кг") }
-                        itemsIndexed(historicalPallets) { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmtWeight(p.net)} кг") }
-                        itemsIndexed(historicalLongDefects) { i, d -> Text("Длинный брак ${i + 1}: ${d.type} · ${fmtWeight(d.weight)} кг") }
+                    }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("ДОБАВИТЬ ДЛИННЫЙ БРАК") }
+                    Card(Modifier.fillMaxWidth()) {
+                        Text("Добавлено: пачек ${historicalPacks.size} · ${fmtWeight(historicalPacks.sumOf { it.weight })} кг | брак ${fmtWeight(historicalDefects.sumOf { it.weight })} кг | поддонов ${historicalPallets.size} | длинный брак ${historicalLongDefects.size}", modifier = Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        historicalPacks.forEachIndexed { i, p -> Text("Пачка ${i + 1}: ${fmtWeight(p.weight)} кг · К ${fmtCoefficient(p.coefficient)} · ${p.pieces} шт", style = MaterialTheme.typography.bodyMedium) }
+                        historicalDefects.forEachIndexed { i, d -> Text("Брак ${i + 1}: ${d.type} · ${fmtWeight(d.weight)} кг", style = MaterialTheme.typography.bodyMedium) }
+                        historicalPallets.forEachIndexed { i, p -> Text("Поддон ${i + 1}: ${p.type} · нетто ${fmtWeight(p.net)} кг", style = MaterialTheme.typography.bodyMedium) }
+                        historicalLongDefects.forEachIndexed { i, d -> Text("Длинный брак ${i + 1}: ${d.type} · ${fmtWeight(d.weight)} кг", style = MaterialTheme.typography.bodyMedium) }
                     }
                     Button(onClick = {
                         val saved = JSONArray(prefs.getString("shifts_archive", "[]"))
