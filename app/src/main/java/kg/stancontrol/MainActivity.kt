@@ -228,6 +228,25 @@ class MainActivity : ComponentActivity() {
                     }
 
                     editor.commit()
+
+                    // Restore Cash Control independently: its closed periods and current
+                    // period boundary live in a separate SharedPreferences file.
+                    data.optJSONObject("procontrol")?.let { cashData ->
+                        val cashEditor = getSharedPreferences("procontrol", MODE_PRIVATE).edit().clear()
+                        val cashKeys = cashData.keys()
+                        while (cashKeys.hasNext()) {
+                            val key = cashKeys.next()
+                            when (val value = cashData.get(key)) {
+                                is String -> cashEditor.putString(key, value)
+                                is Boolean -> cashEditor.putBoolean(key, value)
+                                is Int -> cashEditor.putInt(key, value)
+                                is Long -> cashEditor.putLong(key, value)
+                                is Double -> cashEditor.putFloat(key, value.toFloat())
+                                is Float -> cashEditor.putFloat(key, value)
+                            }
+                        }
+                        cashEditor.commit()
+                    }
                     writeAutomaticBackup()
                     android.widget.Toast.makeText(this@MainActivity, "Копия восстановлена. Сегодняшняя смена сохранена, старые дни отправлены в архив.", android.widget.Toast.LENGTH_LONG).show()
                     recreate()
@@ -1339,6 +1358,16 @@ class MainActivity : ComponentActivity() {
                 is String, is Boolean, is Int, is Long, is Float, is Double -> data.put(key, value)
             }
         }
+        // Cash Control uses its own preferences file. Include it in the same
+        // backup so closed periods, period_start and current entries survive restore.
+        val cashData = JSONObject()
+        getSharedPreferences("procontrol", MODE_PRIVATE).all.forEach { (key, value) ->
+            when (value) {
+                is String, is Boolean, is Int, is Long, is Float, is Double -> cashData.put(key, value)
+            }
+        }
+        data.put("procontrol", cashData)
+
         val root = JSONObject()
             .put("app", "StanControl")
             .put("backupVersion", 1)
