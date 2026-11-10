@@ -1808,7 +1808,7 @@ class MainActivity : ComponentActivity() {
             cell(startX + c1 + c2 + c3, py, c4, 13f, fmtWhole(netTotal), true, 7.0f, true)
         }
         fun longDefectSection(startX: Float) {
-            cell(startX, y, lowerColWidth, 17f, "Длинный брак", true, 7.2f, true)
+            cell(startX, y, lowerColWidth, 17f, "Склад Брака(6метров)", true, 7.2f, true)
             var py = y + 17f
             val numberWidth = 18f
             cell(startX, py, numberWidth, 13f, "№", true, 6.5f, true)
